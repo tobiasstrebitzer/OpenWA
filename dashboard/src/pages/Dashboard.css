@@ -286,16 +286,77 @@
     gap: 1rem;
   }
 
-  .table-header,
-  .table-row {
-    grid-template-columns: 1fr 1fr 1fr;
-    font-size: 0.8125rem;
+  .stat-value {
+    font-size: 1.5rem;
   }
 
-  .table-header span:nth-child(4),
-  .table-header span:nth-child(5),
-  .table-row > *:nth-child(4),
-  .table-row > *:nth-child(5) {
+  .sessions-section {
+    padding: 1rem;
+  }
+
+  .section-header {
+    flex-direction: column;
+    align-items: flex-start;
+    gap: 0.5rem;
+    margin-bottom: 1rem;
+  }
+
+  /* Convert table to card layout on mobile */
+  .sessions-table .table-header {
     display: none;
+  }
+
+  .sessions-table .table-row {
+    display: flex;
+    flex-direction: column;
+    gap: 0.5rem;
+    padding: 1rem;
+    border-bottom: 1px solid var(--border);
+  }
+
+  .sessions-table .table-row:last-child {
+    border-bottom: none;
+  }
+
+  .session-info-cell {
+    order: 1;
+  }
+
+  .session-id {
+    font-size: 0.9375rem;
+    font-weight: 600;
+  }
+
+  .phone {
+    order: 2;
+  }
+
+  .status-pill {
+    order: 3;
+  }
+
+  .last-active {
+    order: 4;
+    font-size: 0.75rem;
+    color: var(--text-muted);
+  }
+
+  .actions {
+    order: 5;
+    justify-content: flex-start;
+    padding-top: 0.5rem;
+    border-top: 1px solid var(--border);
+  }
+}
+
+@media (max-width: 480px) {
+  .dashboard {
+    padding: 0.75rem;
+  }
+
+  .header-title {
+    flex-direction: column;
+    align-items: flex-start;
+    gap: 0.5rem;
   }
 }

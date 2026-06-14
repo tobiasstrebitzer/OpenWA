@@ -81,12 +81,6 @@
   font-size: 0.75rem;
 }
 
-.feature-more {
-  padding: 0.25rem 0.5rem;
-  color: var(--text-muted);
-  font-size: 0.75rem;
-}
-
 /* Plugins Grid */
 .plugins-grid {
   display: grid;

@@ -178,14 +178,11 @@ export default function Plugins() {
           <div className="engine-features">
             <p className="features-label">{t('plugins.supportedFeatures')}</p>
             <div className="features-list">
-              {activeEngine.features.slice(0, 8).map(feature => (
+              {activeEngine.features.map(feature => (
                 <span key={feature} className="feature-tag">
-                  {feature}
+                  {feature.replace(/-/g, ' ')}
                 </span>
               ))}
-              {activeEngine.features.length > 8 && (
-                <span className="feature-more">{t('plugins.more', { count: activeEngine.features.length - 8 })}</span>
-              )}
             </div>
           </div>
         )}
