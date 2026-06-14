@@ -937,7 +937,157 @@ GET /api/sessions/:sessionId/chats/:chatId/messages
 
 ---
 
-### 6.4.3 Contacts
+#### Send Template Message
+
+Render a stored text template and send it as a regular text message. The
+template body (and optional header/footer) is rendered server-side by
+substituting `{{placeholder}}` tokens with the supplied `vars`. Rendering
+reuses the standard `send-text` path, so plugin hooks, message persistence, and
+delivery-status tracking behave identically to a direct text send.
+
+> **Scope (issue #69):** Only **Option B** — server-side text templates with
+> variable substitution — is supported. Interactive templates (buttons, list
+> messages, WhatsApp Business HSM / approved message templates) are **Option A**
+> and are **not supported** on the whatsapp-web.js engine.
+
+```http
+POST /api/sessions/:sessionId/messages/send-template
+```
+
+**Request Body:**
+```json
+{
+  "chatId": "628123456789@c.us",
+  "templateName": "order-confirmation",
+  "vars": {
+    "customer": "Alice",
+    "orderId": "1234"
+  }
+}
+```
+
+**Request Fields:**
+
+| Field | Type | Required | Description |
+|-------|------|----------|-------------|
+| `chatId` | string | Yes | Recipient chat ID |
+| `templateId` | string | Conditional | Template UUID. Provide either `templateId` or `templateName`. |
+| `templateName` | string | Conditional | Template name within the session. Provide either `templateId` or `templateName`. |
+| `vars` | object | No | Map of `{{placeholder}}` keys to substitution values. Unknown placeholders are left literal. |
+
+**Response (201 Created):**
+```json
+{
+  "success": true,
+  "data": {
+    "messageId": "true_628123456789@c.us_3EB0ABC123",
+    "timestamp": "2025-02-02T10:00:00.000Z"
+  }
+}
+```
+
+Returns `404 Not Found` when the session or the referenced template does not
+exist, and `400 Bad Request` when the session is not active.
+
+---
+
+### 6.4.3 Templates
+
+Server-side text message templates (issue #69, Option B). Templates are scoped
+to a session and rendered with `{{placeholder}}` substitution by the
+[Send Template Message](#send-template-message) endpoint. All endpoints require
+an API key with at least the `operator` role.
+
+> Interactive button / list / HSM templates (**Option A**) are out of scope on
+> the whatsapp-web.js engine and are not provided.
+
+#### Create Template
+
+```http
+POST /api/sessions/:sessionId/templates
+```
+
+**Request Body:**
+```json
+{
+  "name": "order-confirmation",
+  "body": "Hi {{customer}}, your order {{orderId}} has shipped.",
+  "header": "OpenWA Store",
+  "footer": "Reply STOP to unsubscribe."
+}
+```
+
+**Request Fields:**
+
+| Field | Type | Required | Description |
+|-------|------|----------|-------------|
+| `name` | string | Yes | Template name (max 100 chars), unique per session by convention |
+| `body` | string | Yes | Template body with `{{placeholder}}` tokens (max 4096 chars) |
+| `header` | string | No | Optional header, prepended to the rendered body |
+| `footer` | string | No | Optional footer, appended to the rendered body |
+
+When rendered, the header, body, and footer are joined with blank lines.
+
+**Response (201 Created):**
+```json
+{
+  "success": true,
+  "data": {
+    "id": "b1c2d3e4-f5a6-7890-bcde-f01234567890",
+    "sessionId": "sess_abc123",
+    "name": "order-confirmation",
+    "body": "Hi {{customer}}, your order {{orderId}} has shipped.",
+    "header": "OpenWA Store",
+    "footer": "Reply STOP to unsubscribe.",
+    "createdAt": "2025-02-02T10:00:00.000Z",
+    "updatedAt": "2025-02-02T10:00:00.000Z"
+  }
+}
+```
+
+---
+
+#### List Templates
+
+```http
+GET /api/sessions/:sessionId/templates
+```
+
+Returns all templates for the session, newest first.
+
+---
+
+#### Get Template
+
+```http
+GET /api/sessions/:sessionId/templates/:id
+```
+
+Returns `404 Not Found` when the template does not exist in the session.
+
+---
+
+#### Update Template
+
+```http
+PUT /api/sessions/:sessionId/templates/:id
+```
+
+**Request Body:** any subset of `name`, `body`, `header`, `footer`.
+
+---
+
+#### Delete Template
+
+```http
+DELETE /api/sessions/:sessionId/templates/:id
+```
+
+**Response:** `204 No Content`.
+
+---
+
+### 6.4.4 Contacts
 
 #### Get All Contacts
 
@@ -1000,7 +1150,7 @@ GET /api/sessions/:sessionId/contacts/:contactId/profile-picture
 
 ---
 
-### 6.4.4 Groups
+### 6.4.5 Groups
 
 #### Get All Groups
 
@@ -1074,7 +1224,7 @@ POST /api/sessions/:sessionId/groups
 
 ---
 
-### 6.4.5 Webhooks
+### 6.4.6 Webhooks
 
 #### Register Webhook
 
@@ -1131,7 +1281,7 @@ DELETE /api/sessions/:sessionId/webhooks/:webhookId
 
 ---
 
-### 6.4.6 Health
+### 6.4.7 Health
 
 #### Basic Health Check
 

@@ -3,9 +3,12 @@ import { InjectRepository } from '@nestjs/typeorm';
 import { Repository } from 'typeorm';
 import { SessionService } from '../session/session.service';
 import { SendTextMessageDto, SendMediaMessageDto, MessageResponseDto } from './dto';
+import { SendTemplateMessageDto } from './dto/send-template.dto';
 import { MediaInput } from '../../engine/interfaces/whatsapp-engine.interface';
 import { Message, MessageDirection, MessageStatus } from './entities/message.entity';
 import { HookManager } from '../../core/hooks';
+import { TemplateService } from '../template/template.service';
+import { renderTemplate } from '../../common/utils/template-render';
 
 export interface GetMessagesOptions {
   chatId?: string;
@@ -20,6 +23,7 @@ export class MessageService {
     private readonly messageRepository: Repository<Message>,
     private readonly sessionService: SessionService,
     private readonly hookManager: HookManager,
+    private readonly templateService: TemplateService,
   ) {}
 
   async sendText(sessionId: string, dto: SendTextMessageDto): Promise<MessageResponseDto> {
@@ -80,6 +84,28 @@ export class MessageService {
 
       throw error;
     }
+  }
+
+  /**
+   * Resolve a stored template, render its body (with optional header/footer
+   * flattened using newlines) using the supplied variables, and delegate to the
+   * existing {@link sendText} path so plugin hooks, persistence, and status
+   * tracking are reused. Throws NotFoundException when the template cannot be
+   * resolved by id or name.
+   */
+  async sendTemplate(sessionId: string, dto: SendTemplateMessageDto): Promise<MessageResponseDto> {
+    const template = await this.templateService.resolve(sessionId, {
+      templateId: dto.templateId,
+      templateName: dto.templateName,
+    });
+
+    const vars = dto.vars ?? {};
+    const segments = [template.header, template.body, template.footer]
+      .filter((segment): segment is string => segment != null && segment.length > 0)
+      .map(segment => renderTemplate(segment, vars));
+    const text = segments.join('\n\n');
+
+    return this.sendText(sessionId, { chatId: dto.chatId, text });
   }
 
   async sendImage(sessionId: string, dto: SendMediaMessageDto): Promise<MessageResponseDto> {
