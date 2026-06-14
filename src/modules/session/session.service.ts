@@ -17,6 +17,8 @@ import { createLogger } from '../../common/services/logger.service';
 import { EventsGateway } from '../events/events.gateway';
 import { WebhookService } from '../webhook/webhook.service';
 import { HookManager } from '../../core/hooks';
+import { Message } from '../message/entities/message.entity';
+import { ackToMessageStatus } from '../message/message-status.util';
 
 interface ReconnectState {
   attempts: number;
@@ -44,6 +46,8 @@ export class SessionService implements OnModuleDestroy, OnModuleInit, OnApplicat
     private readonly eventsGateway: EventsGateway,
     private readonly webhookService: WebhookService,
     private readonly hookManager: HookManager,
+    @InjectRepository(Message, 'data')
+    private readonly messageRepository: Repository<Message>,
   ) {}
 
   /**
@@ -398,9 +402,21 @@ export class SessionService implements OnModuleDestroy, OnModuleInit, OnApplicat
           action: 'message_ack',
         });
 
+        // Reflect real delivery state on the stored message (#220): ack=2 -> delivered, >=3 -> read,
+        // <0 -> failed. A send that never reaches ack>=2 stays SENT — visibly "not delivered".
+        const status = ackToMessageStatus(ack);
+        if (status) {
+          void this.messageRepository.update({ waMessageId: messageId }, { status });
+        }
+
         // Dispatch the delivery/read receipt to webhooks (#155). Outgoing `message.sent` is handled
         // solely by `onMessageCreate`, so the ack path deliberately does NOT emit `message.sent`.
         void this.webhookService.dispatch(id, 'message.ack', { messageId, ack });
+
+        // Surface delivery failures actively so consumers don't have to poll for them (#220).
+        if (ack < 0) {
+          void this.webhookService.dispatch(id, 'message.failed', { messageId, ack });
+        }
       },
       onDisconnected: (reason: string): void => {
         this.logger.warn(`Session disconnected: ${reason}`, {

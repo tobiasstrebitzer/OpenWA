@@ -4,6 +4,7 @@ import { Repository, DataSource } from 'typeorm';
 import { NotFoundException, ConflictException, BadRequestException } from '@nestjs/common';
 import { SessionService } from './session.service';
 import { Session, SessionStatus } from './entities/session.entity';
+import { Message, MessageStatus } from '../message/entities/message.entity';
 import { EngineFactory } from '../../engine/engine.factory';
 import { EventsGateway } from '../events/events.gateway';
 import { WebhookService } from '../webhook/webhook.service';
@@ -36,6 +37,7 @@ describe('SessionService', () => {
   let eventsGateway: jest.Mocked<Partial<EventsGateway>>;
   let webhookService: jest.Mocked<Partial<WebhookService>>;
   let hookManager: jest.Mocked<Partial<HookManager>>;
+  let messageRepository: jest.Mocked<Partial<Repository<Message>>>;
   let mockEngine: Record<string, jest.Mock>;
 
   beforeEach(async () => {
@@ -85,6 +87,10 @@ describe('SessionService', () => {
       execute: jest.fn().mockResolvedValue({ continue: true, data: {} }),
     };
 
+    messageRepository = {
+      update: jest.fn().mockResolvedValue({ affected: 1 }),
+    };
+
     const module: TestingModule = await Test.createTestingModule({
       providers: [
         SessionService,
@@ -100,6 +106,7 @@ describe('SessionService', () => {
         { provide: EventsGateway, useValue: eventsGateway },
         { provide: WebhookService, useValue: webhookService },
         { provide: HookManager, useValue: hookManager },
+        { provide: getRepositoryToken(Message, 'data'), useValue: messageRepository },
       ],
     }).compile();
 
@@ -337,6 +344,41 @@ describe('SessionService', () => {
 
       expect(dispatchedEvents('message.ack')).toHaveLength(1);
       expect(dispatchedEvents('message.sent')).toHaveLength(0);
+    });
+
+    it('reflects delivery on the stored message: ack=2 updates status to DELIVERED (#220)', async () => {
+      const callbacks = await startAndCaptureCallbacks();
+
+      callbacks.onMessageAck!('wa-out-1', 2);
+      await flush();
+
+      expect(messageRepository.update as jest.Mock).toHaveBeenCalledWith(
+        { waMessageId: 'wa-out-1' },
+        { status: MessageStatus.DELIVERED },
+      );
+    });
+
+    it('marks the stored message FAILED and dispatches message.failed on an error ack (<0) (#220)', async () => {
+      const callbacks = await startAndCaptureCallbacks();
+
+      callbacks.onMessageAck!('wa-out-1', -1);
+      await flush();
+
+      expect(messageRepository.update as jest.Mock).toHaveBeenCalledWith(
+        { waMessageId: 'wa-out-1' },
+        { status: MessageStatus.FAILED },
+      );
+      expect(dispatchedEvents('message.failed')).toHaveLength(1);
+    });
+
+    it('does not upgrade the stored status (or emit message.failed) for a server-only ack (1)', async () => {
+      const callbacks = await startAndCaptureCallbacks();
+
+      callbacks.onMessageAck!('wa-out-1', 1);
+      await flush();
+
+      expect(messageRepository.update as jest.Mock).not.toHaveBeenCalled();
+      expect(dispatchedEvents('message.failed')).toHaveLength(0);
     });
 
     it('dispatches message.received (not message.sent) on an incoming message event', async () => {
