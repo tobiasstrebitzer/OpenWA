@@ -21,9 +21,10 @@ import { ApiKeyRole } from '../auth/entities/api-key.entity';
 describe('InfraController access control (Vuln 2)', () => {
   const reflector = new Reflector();
 
-  // Every mutating or data-exfiltration endpoint must require the ADMIN role so
-  // that a low-privilege (VIEWER/OPERATOR) API key cannot wipe data, read
-  // secrets, change config, restart, or trigger storage import.
+  // Every mutating, data-exfiltration, and operational-read endpoint must require
+  // the ADMIN role so that a low-privilege (VIEWER/OPERATOR) API key cannot wipe
+  // data, read secrets, change config, restart, trigger storage import, or read
+  // infrastructure status / engine / storage details (#221 tightened the reads).
   const adminOnly = [
     'saveConfig', // PUT  /infra/config
     'requestRestart', // POST /infra/restart
@@ -31,19 +32,16 @@ describe('InfraController access control (Vuln 2)', () => {
     'importData', // POST /infra/import-data  (DELETEs all rows)
     'exportStorage', // GET  /infra/storage/export
     'importStorage', // POST /infra/storage/import
+    'getStatus', // GET  /infra/status
+    'getEngines', // GET  /infra/engines
+    'getCurrentEngine', // GET  /infra/engines/current
+    'getStorageFileCount', // GET  /infra/storage/files/count
   ] as const;
 
   it.each(adminOnly)('%s requires the ADMIN role', method => {
     const handler = InfraController.prototype[method as keyof InfraController] as object;
     const role = reflector.get<ApiKeyRole | undefined>(REQUIRED_ROLE_KEY, handler);
     expect(role).toBe(ApiKeyRole.ADMIN);
-  });
-
-  it('leaves read-only status open to any authenticated key', () => {
-    // eslint-disable-next-line @typescript-eslint/unbound-method -- reading route metadata off the handler, not invoking it
-    const handler = InfraController.prototype.getStatus as object;
-    const role = reflector.get<ApiKeyRole | undefined>(REQUIRED_ROLE_KEY, handler);
-    expect(role).toBeUndefined();
   });
 });
 

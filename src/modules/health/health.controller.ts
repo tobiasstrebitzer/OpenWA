@@ -1,6 +1,7 @@
 import { Controller, Get } from '@nestjs/common';
 import { ApiTags, ApiOperation, ApiResponse } from '@nestjs/swagger';
 import { Public } from '../auth/decorators/auth.decorators';
+import { SkipThrottle } from '@nestjs/throttler';
 
 interface HealthCheckResult {
   status: 'ok' | 'error';
@@ -12,6 +13,7 @@ interface HealthCheckResult {
 @ApiTags('health')
 @Controller('health')
 @Public()
+@SkipThrottle()
 export class HealthController {
   @Get()
   @ApiOperation({ summary: 'Basic health check' })
