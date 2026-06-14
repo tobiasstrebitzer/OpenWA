@@ -2,7 +2,7 @@
 # Multi-stage build for production-ready image
 
 # ===== Stage 1: Builder =====
-FROM node:22-slim AS builder
+FROM docker.io/node:22-slim AS builder
 
 WORKDIR /app
 
@@ -26,7 +26,7 @@ COPY . .
 RUN npm run build
 
 # ===== Stage 2: Production =====
-FROM node:22-slim AS production
+FROM docker.io/node:22-slim AS production
 
 # Install Chrome/Chromium and required dependencies
 RUN apt-get update && apt-get install -y \
@@ -49,6 +49,7 @@ RUN apt-get update && apt-get install -y \
     libxrandr2 \
     xdg-utils \
     dumb-init \
+    curl \
     && rm -rf /var/lib/apt/lists/*
 
 # Set Chrome executable path for Puppeteer
@@ -82,7 +83,7 @@ EXPOSE 2785
 
 # Health check
 HEALTHCHECK --interval=30s --timeout=10s --start-period=30s --retries=3 \
-    CMD node -e "require('http').get('http://localhost:2785/api/health', (r) => process.exit(r.statusCode === 200 ? 0 : 1))"
+    CMD curl -f http://localhost:2785/api/health || exit 1
 
 # Start with dumb-init to handle signals properly
 ENTRYPOINT ["dumb-init", "--"]

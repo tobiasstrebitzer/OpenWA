@@ -109,6 +109,17 @@ docker compose -f docker-compose.dev.yml up -d
 # Swagger: http://localhost:2785/api/docs
 ```
 
+> **Using Podman instead of Docker?**
+> Podman rootless mode requires the socket to be running and `DOCKER_HOST` to be set:
+>
+> ```bash
+> systemctl --user start podman.socket
+> systemctl --user enable podman.socket
+> export DOCKER_HOST=unix:///run/user/$(id -u)/podman/podman.sock
+> ```
+>
+> Add the `export` line to your `~/.bashrc` to make it permanent.
+
 ### Option B: Local Development
 
 ```bash
