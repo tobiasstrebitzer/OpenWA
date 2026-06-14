@@ -206,6 +206,22 @@ export class WhatsAppWebJsAdapter extends EventEmitter implements IWhatsAppEngin
       }
     });
 
+    this.client.on('message_create', msg => {
+      // `message_create` fires for every message the account creates — including ones composed on a
+      // linked phone, which the `message` event above never delivers. Incoming messages are already
+      // handled there, so forward only the account's own outgoing (`fromMe`) messages; this is the
+      // single source for `message.sent` (covers API sends and phone-composed self-messages alike).
+      if (!msg.fromMe) {
+        return;
+      }
+
+      try {
+        this.callbacks.onMessageCreate?.(buildIncomingMessageBase(msg));
+      } catch (error) {
+        this.logger.error('Error processing outgoing message', String(error));
+      }
+    });
+
     this.client.on('message_ack', (msg, ack) => {
       this.callbacks.onMessageAck?.(msg.id._serialized, ack);
     });

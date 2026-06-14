@@ -8,6 +8,7 @@ import { EngineFactory } from '../../engine/engine.factory';
 import { EventsGateway } from '../events/events.gateway';
 import { WebhookService } from '../webhook/webhook.service';
 import { HookManager } from '../../core/hooks';
+import { IncomingMessage, EngineEventCallbacks } from '../../engine/interfaces/whatsapp-engine.interface';
 
 function createMockSession(overrides: Partial<Session> = {}): Session {
   return {
@@ -250,6 +251,80 @@ describe('SessionService', () => {
         expect.objectContaining({ sessionId: 'sess-uuid-1' }),
         expect.any(Object),
       );
+    });
+  });
+
+  // ── engine message-event webhook dispatch ─────────────────────────
+
+  describe('engine message-event webhook dispatch', () => {
+    const flush = (): Promise<void> => new Promise(resolve => setImmediate(resolve));
+
+    async function startAndCaptureCallbacks(): Promise<EngineEventCallbacks> {
+      (repository.findOne as jest.Mock).mockResolvedValue(createMockSession());
+      (repository.update as jest.Mock).mockResolvedValue({ affected: 1 });
+      await service.start('sess-uuid-1');
+      const calls = mockEngine.initialize.mock.calls as [EngineEventCallbacks][];
+      return calls[0][0];
+    }
+
+    function dispatchedEvents(event: string): unknown[][] {
+      const calls = (webhookService.dispatch as jest.Mock).mock.calls as unknown[][];
+      return calls.filter(call => call[1] === event);
+    }
+
+    const makeMessage = (overrides: Partial<IncomingMessage> = {}): IncomingMessage => ({
+      id: 'wa-msg-1',
+      from: 'peer@c.us',
+      to: 'me@c.us',
+      chatId: 'peer@c.us',
+      body: 'hello',
+      type: 'chat',
+      timestamp: 1706868000,
+      fromMe: false,
+      isGroup: false,
+      ...overrides,
+    });
+
+    it('dispatches message.sent exactly once for an outgoing (message_create) event', async () => {
+      const callbacks = await startAndCaptureCallbacks();
+      expect(typeof callbacks.onMessageCreate).toBe('function');
+
+      callbacks.onMessageCreate!(makeMessage({ id: 'wa-out-1', from: 'me@c.us', to: 'peer@c.us', fromMe: true }));
+      await flush();
+
+      const sent = dispatchedEvents('message.sent');
+      expect(sent).toHaveLength(1);
+      expect(sent[0][0]).toBe('sess-uuid-1');
+    });
+
+    it('does not dispatch message.sent for an incoming message_create event (fromMe=false)', async () => {
+      const callbacks = await startAndCaptureCallbacks();
+
+      callbacks.onMessageCreate!(makeMessage({ fromMe: false }));
+      await flush();
+
+      expect(dispatchedEvents('message.sent')).toHaveLength(0);
+    });
+
+    it('dispatches message.ack but never message.sent on a message_ack event', async () => {
+      const callbacks = await startAndCaptureCallbacks();
+      expect(typeof callbacks.onMessageAck).toBe('function');
+
+      callbacks.onMessageAck!('wa-out-1', 3);
+      await flush();
+
+      expect(dispatchedEvents('message.ack')).toHaveLength(1);
+      expect(dispatchedEvents('message.sent')).toHaveLength(0);
+    });
+
+    it('dispatches message.received (not message.sent) on an incoming message event', async () => {
+      const callbacks = await startAndCaptureCallbacks();
+
+      callbacks.onMessage!(makeMessage({ fromMe: false }));
+      await flush();
+
+      expect(dispatchedEvents('message.received')).toHaveLength(1);
+      expect(dispatchedEvents('message.sent')).toHaveLength(0);
     });
   });
 

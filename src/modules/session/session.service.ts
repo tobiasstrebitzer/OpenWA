@@ -349,6 +349,53 @@ export class SessionService implements OnModuleDestroy, OnModuleInit, OnApplicat
             this.eventsGateway.emitMessage(id, finalMessage);
           });
       },
+      onMessageCreate: (message): void => {
+        // `message_create` fires for every message the account creates, including sends composed on a
+        // linked phone — which the `message`/`onMessage` event never delivers. Incoming messages are
+        // already handled by `onMessage`, so only outgoing (`fromMe`) ones produce `message.sent` here.
+        if (!message.fromMe) {
+          return;
+        }
+
+        this.logger.debug(`Message sent to ${message.to}`, {
+          sessionId: id,
+          messageId: message.id,
+          to: message.to,
+          action: 'message_sent',
+        });
+        // Update last active timestamp
+        void this.sessionRepository.update(id, { lastActiveAt: new Date() });
+        const messageData = { ...message };
+
+        // Execute hook for message sent - plugins can modify or stop processing
+        void this.hookManager
+          .execute('message:sent', messageData, {
+            sessionId: id,
+            source: 'Engine',
+          })
+          .then(({ continue: shouldContinue, data: finalMessage }) => {
+            if (!shouldContinue) {
+              return;
+            }
+
+            // Dispatch to webhooks with potentially modified message
+            void this.webhookService.dispatch(id, 'message.sent', finalMessage);
+            // Emit real-time event to WebSocket clients
+            this.eventsGateway.emitMessage(id, finalMessage);
+          });
+      },
+      onMessageAck: (messageId, ack): void => {
+        this.logger.debug(`Message ack: ${messageId} -> ${ack}`, {
+          sessionId: id,
+          messageId,
+          ack,
+          action: 'message_ack',
+        });
+
+        // Dispatch the delivery/read receipt to webhooks (#155). Outgoing `message.sent` is handled
+        // solely by `onMessageCreate`, so the ack path deliberately does NOT emit `message.sent`.
+        void this.webhookService.dispatch(id, 'message.ack', { messageId, ack });
+      },
       onDisconnected: (reason: string): void => {
         this.logger.warn(`Session disconnected: ${reason}`, {
           sessionId: id,

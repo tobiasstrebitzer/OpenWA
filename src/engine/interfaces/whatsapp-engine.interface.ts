@@ -212,6 +212,11 @@ export interface EngineEventCallbacks {
   onQRCode?: (qr: string) => void;
   onReady?: (phone: string, pushName: string) => void;
   onMessage?: (message: IncomingMessage) => void;
+  /**
+   * Fired for messages the account itself created (outgoing) — including sends composed on a
+   * linked phone, which the `message`/`onMessage` event never delivers. Used to emit `message.sent`.
+   */
+  onMessageCreate?: (message: IncomingMessage) => void;
   onMessageAck?: (messageId: string, ack: number) => void;
   onDisconnected?: (reason: string) => void;
   onStateChanged?: (state: EngineStatus) => void;
