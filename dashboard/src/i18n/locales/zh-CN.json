@@ -401,6 +401,8 @@
       "poolSize": "连接池大小",
       "ssl": "SSL 连接",
       "sslDesc": "启用 TLS/SSL 以保障数据库连接安全",
+      "sslRejectUnauthorized": "验证 SSL 证书",
+      "sslRejectUnauthorizedDesc": "拒绝自签名或无效的证书。对于使用自签名证书的托管 Postgres（Supabase、Heroku、Render、Railway），请关闭此项。",
       "migrationsTitle": "数据库迁移",
       "migrationsStatus": "架构会通过 TypeORM 自动同步",
       "migrationsHint": "迁移会自动管理。手动迁移请使用 CLI。"

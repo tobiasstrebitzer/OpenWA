@@ -402,6 +402,8 @@
       "poolSize": "حجم المجموعة",
       "ssl": "اتصال SSL",
       "sslDesc": "تفعيل TLS/SSL لاتصالات آمنة بقاعدة البيانات",
+      "sslRejectUnauthorized": "التحقق من شهادة SSL",
+      "sslRejectUnauthorizedDesc": "رفض الشهادات الموقّعة ذاتيًا أو غير الصالحة. أوقفه لقواعد بيانات Postgres المُدارة ذات الشهادات الموقّعة ذاتيًا (Supabase وHeroku وRender وRailway).",
       "migrationsTitle": "ترحيل قاعدة البيانات",
       "migrationsStatus": "يتم مزامنة المخطط تلقائياً مع TypeORM",
       "migrationsHint": "تُدار عمليات الترحيل تلقائياً. استخدم CLI للترحيل اليدوي."
