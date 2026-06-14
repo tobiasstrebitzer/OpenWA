@@ -18,7 +18,7 @@ import { EventsGateway } from '../events/events.gateway';
 import { WebhookService } from '../webhook/webhook.service';
 import { HookManager } from '../../core/hooks';
 import { Message } from '../message/entities/message.entity';
-import { ackToMessageStatus } from '../message/message-status.util';
+import { ackToMessageStatus, ackStatusTransitionFrom } from '../message/message-status.util';
 
 interface ReconnectState {
   attempts: number;
@@ -404,9 +404,25 @@ export class SessionService implements OnModuleDestroy, OnModuleInit, OnApplicat
 
         // Reflect real delivery state on the stored message (#220): ack=2 -> delivered, >=3 -> read,
         // <0 -> failed. A send that never reaches ack>=2 stays SENT — visibly "not delivered".
+        // The UPDATE is guarded to the allowed prior statuses so delivery state only ADVANCES: an
+        // out-of-order/late ack cannot downgrade a higher status, which also makes these
+        // fire-and-forget writes race-safe at the DB level.
         const status = ackToMessageStatus(ack);
         if (status) {
-          void this.messageRepository.update({ waMessageId: messageId }, { status });
+          void this.messageRepository
+            .update({ waMessageId: messageId, status: In(ackStatusTransitionFrom(status)) }, { status })
+            .then(result => {
+              // affected:0 — the row was not advanced: either the send's 2nd save (which sets
+              // waMessageId) hasn't committed yet, or the status is already at/above the target.
+              if (result.affected === 0) {
+                this.logger.debug(`Message ack ${messageId}: no status row advanced to ${status} (ack=${ack})`, {
+                  sessionId: id,
+                  messageId,
+                  ack,
+                  action: 'message_ack_noop',
+                });
+              }
+            });
         }
 
         // Dispatch the delivery/read receipt to webhooks (#155). Outgoing `message.sent` is handled

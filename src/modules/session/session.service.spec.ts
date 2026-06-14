@@ -353,7 +353,7 @@ describe('SessionService', () => {
       await flush();
 
       expect(messageRepository.update as jest.Mock).toHaveBeenCalledWith(
-        { waMessageId: 'wa-out-1' },
+        expect.objectContaining({ waMessageId: 'wa-out-1' }),
         { status: MessageStatus.DELIVERED },
       );
     });
@@ -365,7 +365,7 @@ describe('SessionService', () => {
       await flush();
 
       expect(messageRepository.update as jest.Mock).toHaveBeenCalledWith(
-        { waMessageId: 'wa-out-1' },
+        expect.objectContaining({ waMessageId: 'wa-out-1' }),
         { status: MessageStatus.FAILED },
       );
       expect(dispatchedEvents('message.failed')).toHaveLength(1);
