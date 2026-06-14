@@ -26,7 +26,7 @@ export function Sessions() {
   const [selectedSession, setSelectedSession] = useState<Session | null>(null);
   const [deleteConfirmId, setDeleteConfirmId] = useState<string | null>(null);
 
-  useWebSocket({
+  const { isConnected, subscribe } = useWebSocket({
     onSessionStatus: useCallback(
       (event: { sessionId: string; status: string }) => {
         setSessions(prev =>
@@ -41,6 +41,14 @@ export function Sessions() {
       [toast, t],
     ),
   });
+
+  // The gateway delivers events only to subscribed rooms; join the wildcard
+  // session.status room so status changes for every session are received live.
+  useEffect(() => {
+    if (isConnected) {
+      subscribe('*', ['session.status', 'session.qr']);
+    }
+  }, [isConnected, subscribe]);
 
   const fetchSessions = async () => {
     try {

@@ -208,11 +208,49 @@ export interface PaginatedProducts {
   };
 }
 
+/**
+ * Lightweight summary of a chat, exposed to the dashboard's real-time chats view.
+ * Only library-agnostic primitives are leaked here; raw whatsapp-web.js objects are
+ * mapped to this shape inside the adapter.
+ */
+export interface ChatSummary {
+  id: string;
+  name: string;
+  isGroup: boolean;
+  unreadCount: number;
+  timestamp: number;
+  lastMessage?: string;
+}
+
+/**
+ * Structured payload for a remotely-revoked ("deleted for everyone") message.
+ * The engine layer never emits a localized display string; `body` is intentionally
+ * empty and the dashboard renders the localized "message deleted" text.
+ */
+export interface RevokedMessage {
+  id: string;
+  chatId: string;
+  from: string;
+  to: string;
+  type: 'revoked';
+  body: '';
+  timestamp: number;
+}
+
+export interface ReactionEvent {
+  messageId: string;
+  chatId: string;
+  reaction: string;
+  senderId: string;
+}
+
 export interface EngineEventCallbacks {
   onQRCode?: (qr: string) => void;
   onReady?: (phone: string, pushName: string) => void;
   onMessage?: (message: IncomingMessage) => void;
   onMessageAck?: (messageId: string, ack: number) => void;
+  onMessageRevoked?: (message: RevokedMessage) => void;
+  onMessageReaction?: (event: ReactionEvent) => void;
   onDisconnected?: (reason: string) => void;
   onStateChanged?: (state: EngineStatus) => void;
 }
@@ -307,4 +345,8 @@ export interface IWhatsAppEngine {
   getProduct(productId: string): Promise<Product | null>;
   sendProduct(chatId: string, productId: string, body?: string): Promise<MessageResult>;
   sendCatalog(chatId: string, body?: string): Promise<MessageResult>;
+
+  // Chats
+  getChats(): Promise<ChatSummary[]>;
+  sendSeen(chatId: string): Promise<boolean>;
 }

@@ -74,6 +74,43 @@ export interface MessageResponse {
   timestamp: number;
 }
 
+// Chat summary returned by GET /sessions/:id/chats (mirrors the backend ChatSummary).
+export interface Chat {
+  id: string;
+  name: string;
+  isGroup: boolean;
+  unreadCount: number;
+  timestamp: number;
+  lastMessage?: string;
+}
+
+export interface ChatMessage {
+  id: string;
+  waMessageId?: string;
+  chatId: string;
+  from: string;
+  to: string;
+  body: string;
+  type: string;
+  direction: 'incoming' | 'outgoing';
+  status: 'pending' | 'sent' | 'delivered' | 'read' | 'failed';
+  timestamp?: number;
+  createdAt: string;
+  metadata?: {
+    media?: { mimetype: string; filename?: string; data?: string };
+    quotedMessage?: { id: string; body: string };
+    reactions?: Record<string, string>;
+  };
+}
+
+export interface SendMediaPayload {
+  base64?: string;
+  url?: string;
+  mimetype?: string;
+  filename?: string;
+  caption?: string;
+}
+
 export interface HealthStatus {
   status: 'ok' | 'error';
   timestamp?: string;
@@ -190,6 +227,16 @@ export const sessionApi = {
   getQR: (id: string) => request<{ qrCode: string; status: string }>(`/sessions/${id}/qr`),
   getStats: () => request<SessionStats>('/sessions/stats/overview'),
   getGroups: (id: string) => request<{ id: string; name: string }[]>(`/sessions/${id}/groups`),
+  getChats: (id: string) => request<Chat[]>(`/sessions/${id}/chats`),
+  markChatRead: (id: string, chatId: string) =>
+    request<{ success: boolean }>(`/sessions/${id}/chats/read`, {
+      method: 'POST',
+      body: JSON.stringify({ chatId }),
+    }),
+  getChatMessages: (id: string, chatId: string, limit = 100) =>
+    request<{ messages: ChatMessage[]; total: number }>(
+      `/sessions/${id}/messages?chatId=${encodeURIComponent(chatId)}&limit=${limit}`,
+    ),
 };
 
 // =============================================================================
@@ -290,6 +337,31 @@ export const messageApi = {
     request<MessageResponse>(`/sessions/${sessionId}/messages/send-document`, {
       method: 'POST',
       body: JSON.stringify({ chatId, url, filename }),
+    }),
+  sendMedia: (
+    sessionId: string,
+    chatId: string,
+    mediaType: 'image' | 'video' | 'audio' | 'document',
+    payload: SendMediaPayload,
+  ) =>
+    request<MessageResponse>(`/sessions/${sessionId}/messages/send-${mediaType}`, {
+      method: 'POST',
+      body: JSON.stringify({ chatId, ...payload }),
+    }),
+  reply: (sessionId: string, data: { chatId: string; quotedMessageId: string; text: string }) =>
+    request<MessageResponse>(`/sessions/${sessionId}/messages/reply`, {
+      method: 'POST',
+      body: JSON.stringify(data),
+    }),
+  react: (sessionId: string, data: { chatId: string; messageId: string; emoji: string }) =>
+    request<void>(`/sessions/${sessionId}/messages/react`, {
+      method: 'POST',
+      body: JSON.stringify(data),
+    }),
+  delete: (sessionId: string, data: { chatId: string; messageId: string; forEveryone?: boolean }) =>
+    request<void>(`/sessions/${sessionId}/messages/delete`, {
+      method: 'POST',
+      body: JSON.stringify(data),
     }),
 };
 

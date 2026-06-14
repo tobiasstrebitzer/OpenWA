@@ -4,6 +4,7 @@ import { Repository, DataSource } from 'typeorm';
 import { NotFoundException, ConflictException, BadRequestException } from '@nestjs/common';
 import { SessionService } from './session.service';
 import { Session, SessionStatus } from './entities/session.entity';
+import { Message } from '../message/entities/message.entity';
 import { EngineFactory } from '../../engine/engine.factory';
 import { EventsGateway } from '../events/events.gateway';
 import { WebhookService } from '../webhook/webhook.service';
@@ -30,6 +31,7 @@ function createMockSession(overrides: Partial<Session> = {}): Session {
 describe('SessionService', () => {
   let service: SessionService;
   let repository: jest.Mocked<Partial<Repository<Session>>>;
+  let messageRepository: jest.Mocked<Partial<Repository<Message>>>;
   let dataSource: jest.Mocked<Partial<DataSource>>;
   let engineFactory: jest.Mocked<Partial<EngineFactory>>;
   let eventsGateway: jest.Mocked<Partial<EventsGateway>>;
@@ -45,6 +47,14 @@ describe('SessionService', () => {
       create: jest.fn(),
       save: jest.fn(),
       remove: jest.fn(),
+      update: jest.fn(),
+    };
+
+    messageRepository = {
+      find: jest.fn(),
+      findOne: jest.fn(),
+      create: jest.fn(),
+      save: jest.fn(),
       update: jest.fn(),
     };
 
@@ -64,6 +74,8 @@ describe('SessionService', () => {
       disconnect: jest.fn().mockResolvedValue(undefined),
       getQRCode: jest.fn().mockReturnValue(null),
       getGroups: jest.fn().mockResolvedValue([]),
+      getChats: jest.fn().mockResolvedValue([]),
+      sendSeen: jest.fn().mockResolvedValue(true),
     };
 
     engineFactory = {
@@ -73,6 +85,8 @@ describe('SessionService', () => {
     eventsGateway = {
       emitSessionStatus: jest.fn(),
       emitMessage: jest.fn(),
+      emitMessageRevoked: jest.fn(),
+      emitMessageReaction: jest.fn(),
     };
 
     webhookService = {
@@ -89,6 +103,10 @@ describe('SessionService', () => {
         {
           provide: getRepositoryToken(Session, 'data'),
           useValue: repository,
+        },
+        {
+          provide: getRepositoryToken(Message, 'data'),
+          useValue: messageRepository,
         },
         {
           provide: getDataSourceToken('data'),
@@ -327,6 +345,111 @@ describe('SessionService', () => {
       expect(stats.disconnected).toBe(1);
       expect(stats.byStatus[SessionStatus.READY]).toBe(2);
       expect(stats.memoryUsage).toBeDefined();
+    });
+  });
+
+  // ── getChats ──────────────────────────────────────────────────────
+
+  describe('getChats', () => {
+    it('should delegate to engine.getChats for a started session', async () => {
+      const session = createMockSession();
+      (repository.findOne as jest.Mock).mockResolvedValue(session);
+      (repository.update as jest.Mock).mockResolvedValue({ affected: 1 });
+
+      await service.start('sess-uuid-1');
+
+      const chats = [{ id: '123@c.us', name: 'Alice', isGroup: false, unreadCount: 2, timestamp: 1700000000 }];
+      mockEngine.getChats.mockResolvedValue(chats);
+
+      const result = await service.getChats('sess-uuid-1');
+
+      expect(mockEngine.getChats).toHaveBeenCalled();
+      expect(result).toEqual(chats);
+    });
+
+    it('should throw BadRequestException when session is not started', async () => {
+      const session = createMockSession();
+      (repository.findOne as jest.Mock).mockResolvedValue(session);
+
+      await expect(service.getChats('sess-uuid-1')).rejects.toThrow(BadRequestException);
+    });
+  });
+
+  // ── sendSeen (markChatRead) ───────────────────────────────────────
+
+  describe('sendSeen', () => {
+    it('should delegate to engine.sendSeen with the chatId', async () => {
+      const session = createMockSession();
+      (repository.findOne as jest.Mock).mockResolvedValue(session);
+      (repository.update as jest.Mock).mockResolvedValue({ affected: 1 });
+
+      await service.start('sess-uuid-1');
+      mockEngine.sendSeen.mockResolvedValue(true);
+
+      const result = await service.sendSeen('sess-uuid-1', '123@c.us');
+
+      expect(mockEngine.sendSeen).toHaveBeenCalledWith('123@c.us');
+      expect(result).toBe(true);
+    });
+
+    it('should throw BadRequestException when session is not started', async () => {
+      const session = createMockSession();
+      (repository.findOne as jest.Mock).mockResolvedValue(session);
+
+      await expect(service.sendSeen('sess-uuid-1', '123@c.us')).rejects.toThrow(BadRequestException);
+    });
+  });
+
+  // ── onMessageRevoked (no localized string) ────────────────────────
+
+  describe('onMessageRevoked callback', () => {
+    it('persists an empty body with type "revoked" and emits no localized string', async () => {
+      const session = createMockSession();
+      (repository.findOne as jest.Mock).mockResolvedValue(session);
+      (repository.update as jest.Mock).mockResolvedValue({ affected: 1 });
+      (messageRepository.update as jest.Mock).mockResolvedValue({ affected: 1 });
+
+      await service.start('sess-uuid-1');
+
+      // Grab the callbacks object passed to engine.initialize.
+      const initializeCall = mockEngine.initialize.mock.calls[0] as unknown[];
+      const callbacks = initializeCall[0] as {
+        onMessageRevoked: (m: { id: string; type: string; body: string }) => void;
+      };
+
+      const revoked = {
+        id: 'WA_MSG_1',
+        chatId: '123@c.us',
+        from: '123@c.us',
+        to: 'me@c.us',
+        type: 'revoked' as const,
+        body: '' as const,
+        timestamp: 1700000000,
+      };
+
+      callbacks.onMessageRevoked(revoked);
+      // Allow the queued microtask (repository.update().then()) to resolve.
+      await Promise.resolve();
+      await Promise.resolve();
+
+      // The stored update must carry an EMPTY body and the 'revoked' type — no display string.
+      expect(messageRepository.update).toHaveBeenCalledWith(
+        { sessionId: 'sess-uuid-1', waMessageId: 'WA_MSG_1' },
+        { body: '', type: 'revoked' },
+      );
+
+      // The structured payload emitted to clients must not contain any localized text.
+      expect(eventsGateway.emitMessageRevoked).toHaveBeenCalledWith(
+        'sess-uuid-1',
+        expect.objectContaining({
+          id: 'WA_MSG_1',
+          type: 'revoked',
+          body: '',
+        }),
+      );
+      const revokedCall = (eventsGateway.emitMessageRevoked as jest.Mock).mock.calls[0] as unknown[];
+      const emittedPayload = revokedCall[1] as { body: string };
+      expect(emittedPayload.body).toBe('');
     });
   });
 

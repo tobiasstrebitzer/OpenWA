@@ -26,6 +26,9 @@ import {
   Product,
   ProductQueryOptions,
   PaginatedProducts,
+  ChatSummary,
+  RevokedMessage,
+  ReactionEvent,
 } from '../interfaces/whatsapp-engine.interface';
 import { createLogger } from '../../common/services/logger.service';
 import {
@@ -208,6 +211,40 @@ export class WhatsAppWebJsAdapter extends EventEmitter implements IWhatsAppEngin
 
     this.client.on('message_ack', (msg, ack) => {
       this.callbacks.onMessageAck?.(msg.id._serialized, ack);
+    });
+
+    this.client.on('message_revoke_everyone', after => {
+      try {
+        const selfWid = this.client?.info?.wid?._serialized;
+        // Emit structured data only; the engine layer never produces a localized
+        // display string. The dashboard renders the localized "message deleted" text.
+        const payload: RevokedMessage = {
+          id: after.id._serialized,
+          chatId: after.from === selfWid ? after.to : after.from,
+          from: after.from,
+          to: after.to,
+          type: 'revoked',
+          body: '',
+          timestamp: after.timestamp,
+        };
+        this.callbacks.onMessageRevoked?.(payload);
+      } catch (error) {
+        this.logger.error('Error processing message_revoke_everyone', String(error));
+      }
+    });
+
+    this.client.on('message_reaction', reaction => {
+      try {
+        const event: ReactionEvent = {
+          messageId: reaction.msgId._serialized,
+          chatId: reaction.id.remote,
+          reaction: reaction.reaction,
+          senderId: reaction.senderId,
+        };
+        this.callbacks.onMessageReaction?.(event);
+      } catch (error) {
+        this.logger.error('Error processing message_reaction', String(error));
+      }
     });
 
     this.client.on('disconnected', reason => {
@@ -932,6 +969,32 @@ export class WhatsAppWebJsAdapter extends EventEmitter implements IWhatsAppEngin
   }
 
   /* eslint-enable @typescript-eslint/require-await, @typescript-eslint/no-unused-vars */
+
+  async getChats(): Promise<ChatSummary[]> {
+    this.ensureReady();
+    const chats = await this.client!.getChats();
+    // Map the raw whatsapp-web.js chat objects to the library-agnostic ChatSummary
+    // shape so that no library types leak past the engine boundary.
+    return chats.map(chat => ({
+      id: chat.id._serialized,
+      name: chat.name,
+      isGroup: chat.isGroup,
+      unreadCount: chat.unreadCount,
+      timestamp: chat.timestamp,
+      lastMessage: chat.lastMessage?.body || undefined,
+    }));
+  }
+
+  async sendSeen(chatId: string): Promise<boolean> {
+    this.ensureReady();
+    try {
+      const chat = await this.client!.getChatById(chatId);
+      return await chat.sendSeen();
+    } catch (error) {
+      this.logger.error(`Error marking chat ${chatId} as read`, String(error));
+      return false;
+    }
+  }
 
   private ensureReady(): void {
     if (this.status !== EngineStatus.READY || !this.client) {
