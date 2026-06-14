@@ -5,17 +5,23 @@ import en from './locales/en.json';
 import he from './locales/he.json';
 import zhCN from './locales/zh-CN.json';
 import zhHK from './locales/zh-HK.json';
+import ar from './locales/ar.json';
+import te from './locales/te.json';
+import fr from './locales/fr.json';
 
-export const supportedLanguages = ['en', 'he', 'zh-CN', 'zh-HK'] as const;
+export const supportedLanguages = ['en', 'he', 'zh-CN', 'zh-HK', 'ar', 'te', 'fr'] as const;
 export type SupportedLanguage = (typeof supportedLanguages)[number];
 
-export const rtlLanguages: SupportedLanguage[] = ['he'];
+export const rtlLanguages: SupportedLanguage[] = ['he', 'ar'];
 
 export const languageOptions: Array<{ value: SupportedLanguage; label: string; compactLabel: string }> = [
   { value: 'en', label: 'English', compactLabel: 'EN' },
   { value: 'he', label: 'עברית', compactLabel: 'עברית' },
   { value: 'zh-CN', label: '简体中文', compactLabel: '简中' },
   { value: 'zh-HK', label: '繁體中文', compactLabel: '繁中' },
+  { value: 'ar', label: 'العربية', compactLabel: 'AR' },
+  { value: 'te', label: 'తెలుగు', compactLabel: 'TE' },
+  { value: 'fr', label: 'Français', compactLabel: 'FR' },
 ];
 
 export function resolveSupportedLanguage(lang?: string): SupportedLanguage {
@@ -43,6 +49,9 @@ void i18n
       he: { translation: he },
       'zh-CN': { translation: zhCN },
       'zh-HK': { translation: zhHK },
+      ar: { translation: ar },
+      te: { translation: te },
+      fr: { translation: fr },
     },
     fallbackLng: 'en',
     supportedLngs: supportedLanguages as unknown as string[],

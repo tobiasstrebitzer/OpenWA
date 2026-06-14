@@ -22,7 +22,7 @@ import {
 } from 'lucide-react';
 import { useTheme } from '../hooks/useTheme';
 import { type UserRole } from '../hooks/useRole';
-import { languageOptions, resolveSupportedLanguage, type SupportedLanguage } from '../i18n';
+import { languageOptions, resolveSupportedLanguage, rtlLanguages, type SupportedLanguage } from '../i18n';
 import './Layout.css';
 
 interface LayoutProps {
@@ -107,7 +107,7 @@ export function Layout({ onLogout, userRole }: LayoutProps) {
     setIsLanguageMenuOpen(false);
     void i18n.changeLanguage(language);
   };
-  const isRtl = currentLang === 'he';
+  const isRtl = rtlLanguages.includes(currentLang);
 
   return (
     <div className="layout">
