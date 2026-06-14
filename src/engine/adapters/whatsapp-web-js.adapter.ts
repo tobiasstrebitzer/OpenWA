@@ -43,6 +43,7 @@ export interface WhatsAppWebJsConfig {
   puppeteer?: {
     headless?: boolean;
     args?: string[];
+    executablePath?: string;
   };
   // Phase 3: Proxy per session
   proxy?: {
@@ -97,6 +98,9 @@ export class WhatsAppWebJsAdapter extends EventEmitter implements IWhatsAppEngin
         puppeteer: {
           headless: this.config.puppeteer?.headless ?? true,
           args: puppeteerArgs,
+          // Only override the executable when explicitly configured; otherwise let
+          // whatsapp-web.js fall back to Puppeteer's bundled Chromium.
+          ...(this.config.puppeteer?.executablePath ? { executablePath: this.config.puppeteer.executablePath } : {}),
         },
       });
 
@@ -104,6 +108,8 @@ export class WhatsAppWebJsAdapter extends EventEmitter implements IWhatsAppEngin
       await this.client.initialize();
     } catch (error) {
       this.setStatus(EngineStatus.FAILED);
+      const reason = error instanceof Error ? error.message : String(error);
+      this.callbacks.onError?.(reason);
       throw error;
     }
   }
@@ -215,9 +221,12 @@ export class WhatsAppWebJsAdapter extends EventEmitter implements IWhatsAppEngin
       this.callbacks.onDisconnected?.(reason);
     });
 
-    this.client.on('auth_failure', () => {
+    this.client.on('auth_failure', (message?: string) => {
       this.setStatus(EngineStatus.FAILED);
-      this.callbacks.onDisconnected?.('Authentication failed');
+      // Authentication failure is terminal: the stored credentials are invalid and
+      // reconnecting will not help — the operator must re-scan the QR code. Route it
+      // through onError (FAILED, no reconnect) rather than onDisconnected (reconnect).
+      this.callbacks.onError?.(message ? `Authentication failed: ${message}` : 'Authentication failed');
     });
   }
 

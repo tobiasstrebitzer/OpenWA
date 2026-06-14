@@ -251,6 +251,84 @@ describe('SessionService', () => {
         expect.any(Object),
       );
     });
+
+    it('persists INITIALIZING before engine.initialize() runs (no post-init clobber) — #219', async () => {
+      const session = createMockSession();
+      (repository.findOne as jest.Mock).mockResolvedValue(session);
+      (repository.update as jest.Mock).mockResolvedValue({ affected: 1 });
+
+      let initializingPersistedBeforeInit = false;
+      mockEngine.initialize.mockImplementation(() => {
+        initializingPersistedBeforeInit = (repository.update as jest.Mock).mock.calls.some(
+          (call: unknown[]) => (call[1] as { status?: SessionStatus })?.status === SessionStatus.INITIALIZING,
+        );
+        return Promise.resolve();
+      });
+
+      await service.start('sess-uuid-1');
+
+      // The engine drives status forward via callbacks during initialize(); writing
+      // INITIALIZING afterwards would clobber that progress, so it must be set before.
+      expect(initializingPersistedBeforeInit).toBe(true);
+      const initializingWrites = (repository.update as jest.Mock).mock.calls.filter(
+        (call: unknown[]) => (call[1] as { status?: SessionStatus })?.status === SessionStatus.INITIALIZING,
+      );
+      expect(initializingWrites).toHaveLength(1);
+    });
+  });
+
+  // ── engine onError / lastError surfacing (#219) ───────────────────
+
+  describe('engine onError', () => {
+    type EngineCallbacks = { onError?: (reason: string) => void; onReady?: (phone: string, name: string) => void };
+
+    const startAndCapture = async (): Promise<EngineCallbacks> => {
+      const session = createMockSession();
+      (repository.findOne as jest.Mock).mockResolvedValue(session);
+      (repository.update as jest.Mock).mockResolvedValue({ affected: 1 });
+      let captured: EngineCallbacks = {};
+      mockEngine.initialize.mockImplementation((cb: EngineCallbacks) => {
+        captured = cb;
+        return Promise.resolve();
+      });
+      await service.start('sess-uuid-1');
+      return captured;
+    };
+
+    it('marks the session FAILED and runs the session:error hook on a terminal engine error', async () => {
+      const callbacks = await startAndCapture();
+
+      callbacks.onError?.('Failed to launch the browser process: spawn ENOENT');
+
+      expect(repository.update).toHaveBeenCalledWith('sess-uuid-1', { status: SessionStatus.FAILED });
+      expect(hookManager.execute).toHaveBeenCalledWith(
+        'session:error',
+        expect.objectContaining({ reason: 'Failed to launch the browser process: spawn ENOENT' }),
+        expect.objectContaining({ sessionId: 'sess-uuid-1' }),
+      );
+    });
+
+    it('surfaces the failure reason via lastError when the session is FAILED', async () => {
+      const callbacks = await startAndCapture();
+      callbacks.onError?.('chromium missing');
+
+      (repository.findOne as jest.Mock).mockResolvedValue(createMockSession({ status: SessionStatus.FAILED }));
+      const result = await service.findOne('sess-uuid-1');
+
+      expect(result.lastError).toBe('chromium missing');
+    });
+
+    it('does not surface lastError once the session has recovered', async () => {
+      const callbacks = await startAndCapture();
+      callbacks.onError?.('transient failure');
+      // Engine later becomes ready, which clears the stored reason.
+      callbacks.onReady?.('628123', 'Tester');
+
+      (repository.findOne as jest.Mock).mockResolvedValue(createMockSession({ status: SessionStatus.READY }));
+      const result = await service.findOne('sess-uuid-1');
+
+      expect(result.lastError).toBeUndefined();
+    });
   });
 
   // ── stop ──────────────────────────────────────────────────────────

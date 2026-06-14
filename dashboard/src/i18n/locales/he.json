@@ -186,12 +186,15 @@
       "readyTitle": "ה-Session מוכן",
       "readyDesc": "ה-Session של WhatsApp מחובר",
       "disconnectedTitle": "ה-Session נותק",
-      "disconnectedDesc": "ה-Session של WhatsApp נותק"
+      "disconnectedDesc": "ה-Session של WhatsApp נותק",
+      "failedTitle": "ה-Session נכשל",
+      "failedDesc": "ה-Session של WhatsApp נכשל באתחול. פתחו את ה-Session כדי לראות את הסיבה."
     },
     "card": {
       "phone": "טלפון",
       "sessionId": "מזהה Session",
-      "lastActive": "פעילות אחרונה"
+      "lastActive": "פעילות אחרונה",
+      "error": "שגיאה"
     }
   },
   "webhooks": {

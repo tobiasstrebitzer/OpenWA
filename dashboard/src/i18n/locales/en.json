@@ -186,12 +186,15 @@
       "readyTitle": "Session Ready",
       "readyDesc": "WhatsApp session is now connected",
       "disconnectedTitle": "Session Disconnected",
-      "disconnectedDesc": "WhatsApp session was disconnected"
+      "disconnectedDesc": "WhatsApp session was disconnected",
+      "failedTitle": "Session Failed",
+      "failedDesc": "The WhatsApp session failed to start. Open the session to see the reason."
     },
     "card": {
       "phone": "Phone",
       "sessionId": "Session ID",
-      "lastActive": "Last Active"
+      "lastActive": "Last Active",
+      "error": "Error"
     }
   },
   "webhooks": {

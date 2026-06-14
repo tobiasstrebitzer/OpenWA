@@ -31,6 +31,10 @@ export class SessionService implements OnModuleDestroy, OnModuleInit, OnApplicat
 
   // In-memory map of active engine instances
   private engines: Map<string, IWhatsAppEngine> = new Map();
+  // Transient, human-readable reason for the most recent terminal engine failure,
+  // keyed by session id. Surfaced on read so the dashboard can explain a FAILED
+  // status; cleared when the session re-initializes or becomes ready.
+  private sessionErrors: Map<string, string> = new Map();
 
   // Reconnection state per session
   private reconnectStates: Map<string, ReconnectState> = new Map();
@@ -163,9 +167,10 @@ export class SessionService implements OnModuleDestroy, OnModuleInit, OnApplicat
   }
 
   async findAll(): Promise<Session[]> {
-    return this.sessionRepository.find({
+    const sessions = await this.sessionRepository.find({
       order: { createdAt: 'DESC' },
     });
+    return sessions.map(session => this.attachLastError(session));
   }
 
   async findOne(id: string): Promise<Session> {
@@ -173,6 +178,16 @@ export class SessionService implements OnModuleDestroy, OnModuleInit, OnApplicat
     if (!session) {
       throw new NotFoundException(`Session with id '${id}' not found`);
     }
+    return this.attachLastError(session);
+  }
+
+  /**
+   * Populate the transient `lastError` field from the in-memory error map. Only a
+   * FAILED session carries an error; any other status clears it so a recovered
+   * session never shows a stale failure reason.
+   */
+  private attachLastError(session: Session): Session {
+    session.lastError = session.status === SessionStatus.FAILED ? this.sessionErrors.get(session.id) : undefined;
     return session;
   }
 
@@ -267,6 +282,13 @@ export class SessionService implements OnModuleDestroy, OnModuleInit, OnApplicat
       proxyType: session.proxyType || undefined,
     });
     this.engines.set(id, engine);
+    // Clear any prior failure reason before a fresh start.
+    this.sessionErrors.delete(id);
+
+    // Mark INITIALIZING before engine.initialize(): the engine drives status forward
+    // (QR_READY -> AUTHENTICATING -> READY) through the callbacks below while it
+    // initializes, so writing INITIALIZING afterwards would clobber that progress.
+    await this.updateStatus(id, SessionStatus.INITIALIZING);
 
     await engine.initialize({
       onQRCode: (): void => {
@@ -305,11 +327,12 @@ export class SessionService implements OnModuleDestroy, OnModuleInit, OnApplicat
           },
         );
 
-        // Reset reconnect attempts on successful connection
+        // Reset reconnect attempts and clear any stale failure reason on success
         const reconnectState = this.reconnectStates.get(id);
         if (reconnectState) {
           reconnectState.attempts = 0;
         }
+        this.sessionErrors.delete(id);
 
         void this.sessionRepository.update(id, {
           status: SessionStatus.READY,
@@ -385,9 +408,30 @@ export class SessionService implements OnModuleDestroy, OnModuleInit, OnApplicat
           void this.updateStatus(id, newStatus);
         }
       },
-    });
+      onError: (reason: string): void => {
+        this.logger.error(`Session engine failed: ${reason}`, undefined, {
+          sessionId: id,
+          reason,
+          action: 'engine_error',
+        });
 
-    await this.updateStatus(id, SessionStatus.INITIALIZING);
+        // Remember the reason so findOne/findAll can surface it to the dashboard,
+        // then persist the FAILED status. This is terminal — no reconnect is
+        // scheduled (unlike onDisconnected), since re-scanning is required.
+        this.sessionErrors.set(id, reason);
+
+        void this.hookManager.execute(
+          'session:error',
+          { reason },
+          {
+            sessionId: id,
+            source: 'Engine',
+          },
+        );
+
+        void this.updateStatus(id, SessionStatus.FAILED);
+      },
+    });
   }
 
   private scheduleReconnect(id: string, session: Session): void {

@@ -28,6 +28,7 @@ export class SessionController {
       lastActive: session.lastActiveAt,
       createdAt: session.createdAt,
       updatedAt: session.updatedAt,
+      lastError: session.lastError ?? null,
     };
   }
 

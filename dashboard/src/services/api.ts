@@ -16,6 +16,8 @@ export interface Session {
   lastActive?: string;
   createdAt: string;
   updatedAt: string;
+  /** Human-readable reason for the most recent terminal engine failure (set only when status is 'failed'). */
+  lastError?: string | null;
 }
 
 export interface SessionStats {

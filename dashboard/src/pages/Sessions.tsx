@@ -26,6 +26,18 @@ export function Sessions() {
   const [selectedSession, setSelectedSession] = useState<Session | null>(null);
   const [deleteConfirmId, setDeleteConfirmId] = useState<string | null>(null);
 
+  const fetchSessions = useCallback(async () => {
+    try {
+      setLoading(true);
+      const data = await sessionApi.list();
+      setSessions(data);
+    } catch (err) {
+      setError(err instanceof Error ? err.message : t('sessions.create.errorDefault'));
+    } finally {
+      setLoading(false);
+    }
+  }, [t]);
+
   useWebSocket({
     onSessionStatus: useCallback(
       (event: { sessionId: string; status: string }) => {
@@ -36,23 +48,15 @@ export function Sessions() {
           toast.success(t('sessions.toasts.readyTitle'), t('sessions.toasts.readyDesc'));
         } else if (event.status === 'disconnected') {
           toast.warning(t('sessions.toasts.disconnectedTitle'), t('sessions.toasts.disconnectedDesc'));
+        } else if (event.status === 'failed') {
+          // Refresh so the card picks up the lastError reason from the API.
+          void fetchSessions();
+          toast.error(t('sessions.toasts.failedTitle'), t('sessions.toasts.failedDesc'));
         }
       },
-      [toast, t],
+      [toast, t, fetchSessions],
     ),
   });
-
-  const fetchSessions = async () => {
-    try {
-      setLoading(true);
-      const data = await sessionApi.list();
-      setSessions(data);
-    } catch (err) {
-      setError(err instanceof Error ? err.message : t('sessions.create.errorDefault'));
-    } finally {
-      setLoading(false);
-    }
-  };
 
   useEffect(() => {
     fetchSessions();
@@ -481,6 +485,14 @@ export function Sessions() {
                     <span className="info-label">{t('sessions.card.lastActive')}</span>
                     <span className="info-value">{formatLastActive(session.lastActive)}</span>
                   </div>
+                  {session.status === 'failed' && session.lastError ? (
+                    <div className="info-row session-error">
+                      <span className="info-label">{t('sessions.card.error')}</span>
+                      <span className="info-value error-text" title={session.lastError}>
+                        {session.lastError}
+                      </span>
+                    </div>
+                  ) : null}
                 </div>
               )}
 
