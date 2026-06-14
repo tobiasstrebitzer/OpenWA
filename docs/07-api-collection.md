@@ -1010,8 +1010,9 @@ curl -X POST \
 All API key management endpoints require an admin API key in `X-API-Key`.
 OpenWA creates the initial admin key on first run, prints it in the startup
 logs, and writes it to `data/.api-key` (or `/app/data/.api-key` inside the API
-container). Local development uses `dev-admin-key` when no keys exist;
-production creates a random `owa_k1_...` admin key.
+container). By default a random `owa_k1_...` admin key is generated on first run
+in all environments; set `ALLOW_DEV_API_KEY=true` to seed the well-known
+`dev-admin-key` for local development only.
 
 ### GET /api/auth/api-keys
 

@@ -55,9 +55,20 @@ export function isBlockedAddress(ip: string): boolean {
     const lower = ip.toLowerCase();
     if (lower === '::1' || lower === '::') return true;
 
-    // IPv4-mapped (::ffff:a.b.c.d) — classify by the embedded IPv4 address.
-    const mapped = /::ffff:(\d+\.\d+\.\d+\.\d+)$/.exec(lower);
-    if (mapped) return isBlockedAddress(mapped[1]);
+    // IPv4-mapped (::ffff:a.b.c.d or ::ffff:hhhh:hhhh) — classify by the embedded IPv4, handling
+    // BOTH the dotted-decimal and the hex-hextet form (the hex form bypassed a dotted-only regex).
+    if (lower.startsWith('::ffff:')) {
+      const tail = lower.slice('::ffff:'.length);
+      if (/^\d{1,3}(\.\d{1,3}){3}$/.test(tail)) {
+        return isBlockedAddress(tail);
+      }
+      const hextets = tail.split(':');
+      if (hextets.length === 2 && hextets.every(h => /^[0-9a-f]{1,4}$/.test(h))) {
+        const hi = parseInt(hextets[0], 16);
+        const lo = parseInt(hextets[1], 16);
+        return isBlockedAddress(`${(hi >> 8) & 0xff}.${hi & 0xff}.${(lo >> 8) & 0xff}.${lo & 0xff}`);
+      }
+    }
 
     const firstHextet = lower.split(':')[0];
     if (firstHextet.startsWith('fc') || firstHextet.startsWith('fd')) return true; // ULA fc00::/7

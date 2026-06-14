@@ -13,7 +13,10 @@ describe('isBlockedAddress', () => {
     ['fc00::1', 'IPv6 ULA fc00::/7'],
     ['fd12:3456::1', 'IPv6 ULA fd'],
     ['fe80::1', 'IPv6 link-local'],
-    ['::ffff:127.0.0.1', 'IPv4-mapped loopback'],
+    ['::ffff:127.0.0.1', 'IPv4-mapped loopback (dotted)'],
+    ['::ffff:7f00:1', 'IPv4-mapped loopback (hex)'],
+    ['::ffff:0a00:0001', 'IPv4-mapped RFC1918 (hex, zero-padded)'],
+    ['::ffff:a9fe:a9fe', 'IPv4-mapped cloud metadata 169.254.169.254 (hex)'],
   ])('blocks %s (%s)', ip => {
     expect(isBlockedAddress(ip)).toBe(true);
   });
@@ -23,6 +26,7 @@ describe('isBlockedAddress', () => {
     ['1.1.1.1', 'public IPv4'],
     ['172.32.0.1', 'just outside 172.16/12'],
     ['2001:4860:4860::8888', 'public IPv6'],
+    ['::ffff:0808:0808', 'IPv4-mapped public 8.8.8.8 (hex)'],
   ])('allows %s (%s)', ip => {
     expect(isBlockedAddress(ip)).toBe(false);
   });

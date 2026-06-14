@@ -117,8 +117,11 @@ async function bootstrap() {
 
   // CORS Configuration (Phase 3 Security Audit; #221 hardening)
   const corsPolicy = resolveCorsPolicy(process.env.CORS_ORIGINS, process.env.NODE_ENV);
-  if (process.env.CORS_ORIGINS?.includes('*') && process.env.NODE_ENV === 'production') {
-    console.warn('[Bootstrap] CORS_ORIGINS=* is refused in production; set an explicit origin allowlist.');
+  if (process.env.NODE_ENV === 'production' && corsPolicy.origins.length === 0 && !corsPolicy.allowAnyOrigin) {
+    console.warn(
+      '[Bootstrap] No explicit CORS_ORIGINS in production (wildcard "*" is refused): cross-origin browser ' +
+        'requests will be blocked. Set CORS_ORIGINS to your dashboard origin(s).',
+    );
   }
   app.enableCors({
     origin: (origin: string | undefined, callback: (err: Error | null, allow?: boolean) => void) => {
