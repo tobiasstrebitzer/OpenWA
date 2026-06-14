@@ -55,13 +55,9 @@ export class MessageService {
       message.timestamp = result.timestamp;
       await this.messageRepository.save(message);
 
-      // Execute hook after successful send
-      await this.hookManager.execute(
-        'message:sent',
-        { sessionId, result, input: finalDto },
-        { sessionId, source: 'MessageService' },
-      );
-
+      // Note: the `message:sent` hook is emitted solely by SessionService.onMessageCreate (engine
+      // `message_create`) with a consistent IncomingMessage payload for ALL sends (text, media,
+      // and phone-composed), so it is intentionally not fired here to avoid a double dispatch.
       return {
         messageId: result.id,
         timestamp: result.timestamp,

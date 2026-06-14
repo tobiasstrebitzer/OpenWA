@@ -357,6 +357,12 @@ export class SessionService implements OnModuleDestroy, OnModuleInit, OnApplicat
           return;
         }
 
+        // Status/Story posts (`status@broadcast`) are account-created but not real conversations;
+        // don't emit `message.sent` for them.
+        if (message.to === 'status@broadcast' || message.chatId === 'status@broadcast') {
+          return;
+        }
+
         this.logger.debug(`Message sent to ${message.to}`, {
           sessionId: id,
           messageId: message.id,
@@ -380,8 +386,8 @@ export class SessionService implements OnModuleDestroy, OnModuleInit, OnApplicat
 
             // Dispatch to webhooks with potentially modified message
             void this.webhookService.dispatch(id, 'message.sent', finalMessage);
-            // Emit real-time event to WebSocket clients
-            this.eventsGateway.emitMessage(id, finalMessage);
+            // Emit real-time event to WebSocket clients (as message.sent, not message.received)
+            this.eventsGateway.emitMessageSent(id, finalMessage);
           });
       },
       onMessageAck: (messageId, ack): void => {

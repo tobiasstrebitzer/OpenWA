@@ -74,6 +74,7 @@ describe('SessionService', () => {
     eventsGateway = {
       emitSessionStatus: jest.fn(),
       emitMessage: jest.fn(),
+      emitMessageSent: jest.fn(),
     };
 
     webhookService = {
@@ -304,6 +305,27 @@ describe('SessionService', () => {
       await flush();
 
       expect(dispatchedEvents('message.sent')).toHaveLength(0);
+    });
+
+    it('does not dispatch message.sent for a status@broadcast (Story) post', async () => {
+      const callbacks = await startAndCaptureCallbacks();
+
+      callbacks.onMessageCreate!(
+        makeMessage({ id: 'wa-status', from: 'me@c.us', to: 'status@broadcast', fromMe: true }),
+      );
+      await flush();
+
+      expect(dispatchedEvents('message.sent')).toHaveLength(0);
+    });
+
+    it('emits the realtime WS event for an outgoing message as message.sent, not message.received', async () => {
+      const callbacks = await startAndCaptureCallbacks();
+
+      callbacks.onMessageCreate!(makeMessage({ id: 'wa-out-2', from: 'me@c.us', to: 'peer@c.us', fromMe: true }));
+      await flush();
+
+      expect(eventsGateway.emitMessageSent as jest.Mock).toHaveBeenCalledWith('sess-uuid-1', expect.anything());
+      expect(eventsGateway.emitMessage as jest.Mock).not.toHaveBeenCalled();
     });
 
     it('dispatches message.ack but never message.sent on a message_ack event', async () => {

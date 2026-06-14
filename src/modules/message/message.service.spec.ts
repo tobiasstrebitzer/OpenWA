@@ -101,7 +101,7 @@ describe('MessageService', () => {
       expect(repository.save).toHaveBeenCalledTimes(2);
     });
 
-    it('should execute message:sending and message:sent hooks', async () => {
+    it('executes the message:sending hook (message:sent now fires once from the engine message_create path)', async () => {
       await service.sendText('sess-1', {
         chatId: '628123456789@c.us',
         text: 'Hello',
@@ -112,11 +112,9 @@ describe('MessageService', () => {
         expect.objectContaining({ type: 'text' }),
         expect.any(Object),
       );
-      expect(hookManager.execute).toHaveBeenCalledWith(
-        'message:sent',
-        expect.objectContaining({ result: mockEngineResult }),
-        expect.any(Object),
-      );
+      // message:sent is no longer fired here — it is emitted solely by SessionService.onMessageCreate
+      // with a consistent IncomingMessage payload for ALL sends (avoids the prior double dispatch).
+      expect(hookManager.execute).not.toHaveBeenCalledWith('message:sent', expect.anything(), expect.anything());
     });
 
     it('should throw BadRequestException when plugin blocks sending', async () => {
