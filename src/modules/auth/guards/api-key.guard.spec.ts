@@ -1,4 +1,4 @@
-import { ExecutionContext, UnauthorizedException } from '@nestjs/common';
+import { ExecutionContext, UnauthorizedException, ForbiddenException } from '@nestjs/common';
 import { Reflector } from '@nestjs/core';
 import { ConfigService } from '@nestjs/config';
 import { ApiKeyGuard } from './api-key.guard';
@@ -139,7 +139,7 @@ describe('ApiKeyGuard', () => {
 
     const context = createMockContext({ 'x-api-key': 'viewer-key' });
 
-    await expect(guard.canActivate(context)).rejects.toThrow('Insufficient permissions');
+    await expect(guard.canActivate(context)).rejects.toThrow(ForbiddenException);
   });
 
   it('should pass session ID from route params to validateApiKey', async () => {
