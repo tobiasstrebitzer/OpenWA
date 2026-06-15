@@ -28,6 +28,12 @@ export class SessionResponseDto {
 
   @ApiProperty({ example: '2025-02-02T10:00:00Z' })
   updatedAt: Date;
+
+  @ApiPropertyOptional({
+    description: 'Human-readable reason for the most recent terminal engine failure (only set when status is FAILED).',
+    example: 'Failed to launch the browser process: spawn /usr/bin/chromium ENOENT',
+  })
+  lastError?: string | null;
 }
 
 export class QRCodeResponseDto {

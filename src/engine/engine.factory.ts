@@ -69,6 +69,16 @@ export class EngineFactory implements OnModuleInit {
         sessionId: options.sessionId,
         proxyUrl: options.proxyUrl,
         proxyType: options.proxyType,
+        // Resolve engine runtime config here (the built-in plugin registers with an
+        // empty context config) so sessionDataPath / puppeteer settings honour the
+        // environment instead of falling back to relative-path defaults.
+        sessionDataPath: this.configService.get<string>('engine.sessionDataPath') ?? './data/sessions',
+        headless: this.configService.get<boolean>('engine.puppeteer.headless') ?? true,
+        puppeteerArgs: this.configService.get<string[]>('engine.puppeteer.args') ?? [
+          '--no-sandbox',
+          '--disable-setuid-sandbox',
+        ],
+        executablePath: this.configService.get<string>('engine.puppeteer.executablePath'),
       }) as IWhatsAppEngine;
     }
 
@@ -99,6 +109,7 @@ export class EngineFactory implements OnModuleInit {
       puppeteer: {
         headless: this.configService.get<boolean>('engine.puppeteer.headless') ?? true,
         args: this.configService.get<string[]>('engine.puppeteer.args') ?? ['--no-sandbox', '--disable-setuid-sandbox'],
+        executablePath: this.configService.get<string>('engine.puppeteer.executablePath'),
       },
       proxy: options.proxyUrl
         ? {

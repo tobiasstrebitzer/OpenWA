@@ -220,6 +220,14 @@ export interface EngineEventCallbacks {
   onMessageAck?: (messageId: string, ack: number) => void;
   onDisconnected?: (reason: string) => void;
   onStateChanged?: (state: EngineStatus) => void;
+  /**
+   * Fired on a terminal initialization/authentication failure (e.g. Chromium
+   * could not launch, or WhatsApp rejected the stored credentials). The engine
+   * has already moved to FAILED; `reason` carries a human-readable cause that
+   * callers may surface to operators. Distinct from `onDisconnected`, which is
+   * recoverable and triggers reconnection.
+   */
+  onError?: (reason: string) => void;
 }
 
 export interface IWhatsAppEngine {
