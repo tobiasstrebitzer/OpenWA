@@ -478,6 +478,25 @@ export class MessageService {
     return engine.getMessageReactions(chatId, messageId);
   }
 
+  /** Maximum messages a single getChatHistory call may request from the engine. */
+  private static readonly MAX_CHAT_HISTORY_LIMIT = 100;
+
+  /**
+   * Fetch chat history live from WhatsApp (bypasses local DB).
+   * Returns the most recent `limit` messages for the given chat.
+   * When `includeMedia` is true, downloads media (base64) for messages that have it.
+   *
+   * `limit` is clamped to [1, 100] (and falls back to 50 for non-finite input) so a
+   * caller cannot ask the engine to fetch an unbounded number of messages.
+   */
+  async getChatHistory(sessionId: string, chatId: string, limit = 50, includeMedia = false) {
+    const engine = this.getEngine(sessionId);
+    const safeLimit = Number.isFinite(limit)
+      ? Math.min(Math.max(Math.trunc(limit), 1), MessageService.MAX_CHAT_HISTORY_LIMIT)
+      : 50;
+    return engine.getChatHistory(chatId, safeLimit, includeMedia);
+  }
+
   // ========== Delete Message ==========
 
   async deleteMessage(

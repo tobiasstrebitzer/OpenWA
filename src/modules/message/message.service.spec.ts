@@ -26,6 +26,7 @@ function createMockEngine() {
     reactToMessage: jest.fn().mockResolvedValue(undefined),
     getMessageReactions: jest.fn().mockResolvedValue([]),
     deleteMessage: jest.fn().mockResolvedValue(undefined),
+    getChatHistory: jest.fn().mockResolvedValue([]),
   };
 }
 
@@ -433,6 +434,41 @@ describe('MessageService', () => {
       });
 
       expect(mockEngine.reactToMessage).toHaveBeenCalledWith('test@c.us', 'wa-msg-1', '👍');
+    });
+  });
+
+  describe('getChatHistory', () => {
+    it('should call engine.getChatHistory with default limit and includeMedia=false', async () => {
+      await service.getChatHistory('sess-1', 'test@c.us');
+      expect(mockEngine.getChatHistory).toHaveBeenCalledWith('test@c.us', 50, false);
+    });
+
+    it('should pass through custom limit', async () => {
+      await service.getChatHistory('sess-1', 'test@c.us', 10);
+      expect(mockEngine.getChatHistory).toHaveBeenCalledWith('test@c.us', 10, false);
+    });
+
+    it('should pass through includeMedia flag', async () => {
+      await service.getChatHistory('sess-1', 'test@c.us', 5, true);
+      expect(mockEngine.getChatHistory).toHaveBeenCalledWith('test@c.us', 5, true);
+    });
+
+    it('should clamp the limit to [1, 100] and default non-finite values to 50', async () => {
+      await service.getChatHistory('sess-1', 'test@c.us', 500);
+      expect(mockEngine.getChatHistory).toHaveBeenLastCalledWith('test@c.us', 100, false);
+
+      await service.getChatHistory('sess-1', 'test@c.us', 0);
+      expect(mockEngine.getChatHistory).toHaveBeenLastCalledWith('test@c.us', 1, false);
+
+      await service.getChatHistory('sess-1', 'test@c.us', Number.NaN);
+      expect(mockEngine.getChatHistory).toHaveBeenLastCalledWith('test@c.us', 50, false);
+    });
+
+    it('should return engine result', async () => {
+      const fake = [{ id: 'm1', body: 'hi', from: 'a', to: 'b', chatId: 'test@c.us' }];
+      mockEngine.getChatHistory.mockResolvedValueOnce(fake);
+      const result = await service.getChatHistory('sess-1', 'test@c.us');
+      expect(result).toBe(fake);
     });
   });
 

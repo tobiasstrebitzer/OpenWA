@@ -817,6 +817,38 @@ export class WhatsAppWebJsAdapter extends EventEmitter implements IWhatsAppEngin
 
   // ========== Gap Quick Wins Implementation ==========
 
+  async getChatHistory(chatId: string, limit: number = 50, includeMedia: boolean = false): Promise<IncomingMessage[]> {
+    this.ensureReady();
+    const chat = await this.client!.getChatById(chatId);
+    const messages = await chat.fetchMessages({ limit });
+    const results: IncomingMessage[] = [];
+    for (const msg of messages) {
+      // Reuse the shared mapper so history messages carry the same author/contact
+      // enrichment as live incoming messages (#223). The mapper defaults chatId to
+      // msg.from, which is wrong here (history includes fromMe messages whose `from`
+      // is our own number), so override it to the requested chat and recompute isGroup.
+      const out = buildIncomingMessageBase(msg);
+      out.chatId = chatId;
+      out.isGroup = chatId.endsWith('@g.us');
+      if (includeMedia && msg.hasMedia) {
+        try {
+          const media = await msg.downloadMedia();
+          if (media) {
+            out.media = {
+              mimetype: media.mimetype,
+              filename: media.filename || undefined,
+              data: media.data,
+            };
+          }
+        } catch (error) {
+          this.logger.warn(`Failed to download media for ${msg.id._serialized}: ${String(error)}`);
+        }
+      }
+      results.push(out);
+    }
+    return results;
+  }
+
   // Delete Message
   async deleteMessage(chatId: string, messageId: string, forEveryone: boolean = true): Promise<void> {
     this.ensureReady();
