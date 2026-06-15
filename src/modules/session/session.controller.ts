@@ -1,8 +1,9 @@
 import { Controller, Get, Post, Delete, Param, Body, HttpCode, HttpStatus } from '@nestjs/common';
 import { ApiTags, ApiOperation, ApiResponse, ApiParam } from '@nestjs/swagger';
 import { SessionService } from './session.service';
-import { CreateSessionDto, SessionResponseDto, QRCodeResponseDto } from './dto';
+import { CreateSessionDto, SessionResponseDto, QRCodeResponseDto, MarkChatReadDto } from './dto';
 import { Session } from './entities/session.entity';
+import { ChatSummary } from '../../engine/interfaces/whatsapp-engine.interface';
 import { AuditService } from '../audit/audit.service';
 import { AuditAction } from '../audit/entities/audit-log.entity';
 import { RequireRole } from '../auth/decorators/auth.decorators';
@@ -28,6 +29,7 @@ export class SessionController {
       lastActive: session.lastActiveAt,
       createdAt: session.createdAt,
       updatedAt: session.updatedAt,
+      lastError: session.lastError ?? null,
     };
   }
 
@@ -163,8 +165,30 @@ export class SessionController {
   })
   @ApiResponse({ status: 400, description: 'Session not ready' })
   @ApiResponse({ status: 404, description: 'Session not found' })
-  async getGroups(@Param('id') id: string): Promise<{ id: string; name: string }[]> {
+  async getGroups(@Param('id') id: string): Promise<{ id: string; name: string; linkedParentJID?: string | null }[]> {
     return this.sessionService.getGroups(id);
+  }
+
+  @Get(':id/chats')
+  @ApiOperation({ summary: 'Get active chats for a session' })
+  @ApiParam({ name: 'id', description: 'Session ID' })
+  @ApiResponse({ status: 200, description: 'List of active chats' })
+  @ApiResponse({ status: 400, description: 'Session not ready' })
+  @ApiResponse({ status: 404, description: 'Session not found' })
+  async getChats(@Param('id') id: string): Promise<ChatSummary[]> {
+    return this.sessionService.getChats(id);
+  }
+
+  @Post(':id/chats/read')
+  @RequireRole(ApiKeyRole.OPERATOR)
+  @ApiOperation({ summary: 'Mark a chat as read/seen' })
+  @ApiParam({ name: 'id', description: 'Session ID' })
+  @ApiResponse({ status: 200, description: 'Chat marked as read successfully' })
+  @ApiResponse({ status: 400, description: 'Session not ready' })
+  @ApiResponse({ status: 404, description: 'Session not found' })
+  async markChatRead(@Param('id') id: string, @Body() dto: MarkChatReadDto): Promise<{ success: boolean }> {
+    const success = await this.sessionService.sendSeen(id, dto.chatId);
+    return { success };
   }
 
   @Get('stats/overview')

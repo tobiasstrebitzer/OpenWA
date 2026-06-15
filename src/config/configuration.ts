@@ -51,6 +51,10 @@ export default () => ({
     puppeteer: {
       headless: process.env.PUPPETEER_HEADLESS !== 'false',
       args: (process.env.PUPPETEER_ARGS || '--no-sandbox,--disable-setuid-sandbox').split(','),
+      // Optional path to a system Chromium/Chrome binary. When unset, whatsapp-web.js
+      // uses Puppeteer's bundled Chromium. Required on hosts where the bundled binary
+      // is missing or incompatible (Alpine, ARM, custom base images).
+      executablePath: process.env.PUPPETEER_EXECUTABLE_PATH || undefined,
     },
     sessionDataPath: process.env.SESSION_DATA_PATH || './data/sessions',
   },

@@ -25,16 +25,19 @@ export interface RawMessageFields {
  * the adapter; this covers the fields available without an await.
  */
 export function buildIncomingMessageBase(msg: RawMessageFields): IncomingMessage {
+  // For an outgoing (fromMe) message `from` is the account's own JID and `to` is the conversation;
+  // for an incoming message it's the reverse. So the chat is `to` when fromMe, else `from`.
+  const chatId = msg.fromMe ? msg.to : msg.from;
   const incoming: IncomingMessage = {
     id: msg.id._serialized,
     from: msg.from,
     to: msg.to,
-    chatId: msg.from,
+    chatId,
     body: msg.body,
     type: msg.type,
     timestamp: msg.timestamp,
     fromMe: msg.fromMe,
-    isGroup: msg.from.endsWith('@g.us'),
+    isGroup: chatId.endsWith('@g.us'),
   };
 
   // In a group, `from` is the group JID, so `author` is the only way to know the real sender.

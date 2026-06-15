@@ -56,12 +56,55 @@
   "nav": {
     "dashboard": "Dashboard",
     "sessions": "Sessions",
+    "chats": "Chats",
     "webhooks": "Webhooks",
     "apiKeys": "API Keys",
     "messageTester": "Message Tester",
     "infrastructure": "Infrastructure",
     "plugins": "Plugins",
     "logs": "Logs"
+  },
+  "chats": {
+    "subtitle": "Send and reply to WhatsApp messages in real time",
+    "noSessionsTitle": "No connected sessions",
+    "noSessionsDesc": "Please connect a WhatsApp session from the <1>Sessions</1> menu first to use the chat feature.",
+    "sessionLabel": "WhatsApp session",
+    "noPhone": "No phone",
+    "searchPlaceholder": "Search chats...",
+    "loadingChats": "Loading chats...",
+    "empty": "No chats",
+    "noMessageYet": "No messages yet",
+    "loadingMessages": "Loading messages...",
+    "noMessagesInChat": "No messages yet. Send the first message to get started!",
+    "downloadDocument": "Download document",
+    "actions": {
+      "reply": "Reply",
+      "react": "React",
+      "delete": "Delete message"
+    },
+    "replyingTo": "Replying to {{name}}",
+    "you": "You",
+    "youPrefix": "You: ",
+    "yesterday": "Yesterday",
+    "attachTitle": "Send file / image",
+    "emojiTitle": "Pick emoji",
+    "captionPlaceholder": "Add a caption...",
+    "messagePlaceholder": "Type a message...",
+    "noPermission": "You do not have permission to send messages",
+    "send": "Send",
+    "placeholderTitle": "Start messaging",
+    "placeholderDesc": "Select an active chat from the left sidebar to start reading and sending WhatsApp messages.",
+    "deleteConfirm": "Delete this message for everyone?",
+    "messageDeleted": "🚫 This message was deleted",
+    "errors": {
+      "loadSessions": "Failed to load sessions",
+      "loadChats": "Failed to load chats",
+      "loadMessages": "Failed to load messages",
+      "markRead": "Failed to mark chat as read",
+      "send": "Failed to send message",
+      "react": "Failed to react to message",
+      "delete": "Failed to delete message"
+    }
   },
   "errorBoundary": {
     "title": "Something went wrong",
@@ -186,12 +229,15 @@
       "readyTitle": "Session Ready",
       "readyDesc": "WhatsApp session is now connected",
       "disconnectedTitle": "Session Disconnected",
-      "disconnectedDesc": "WhatsApp session was disconnected"
+      "disconnectedDesc": "WhatsApp session was disconnected",
+      "failedTitle": "Session Failed",
+      "failedDesc": "The WhatsApp session failed to start. Open the session to see the reason."
     },
     "card": {
       "phone": "Phone",
       "sessionId": "Session ID",
-      "lastActive": "Last Active"
+      "lastActive": "Last Active",
+      "error": "Error"
     }
   },
   "webhooks": {
@@ -475,7 +521,6 @@
     "engineCard": "Active WhatsApp Engine",
     "running": "Running",
     "supportedFeatures": "Supported Features:",
-    "more": "+{{count}} more",
     "builtIn": "Built-in",
     "noDescription": "No description available",
     "required": "Required",

@@ -15,6 +15,7 @@ export const queryKeys = {
   sessions: ['sessions'] as const,
   sessionStats: ['sessions', 'stats'] as const,
   sessionGroups: (sessionId: string) => ['sessions', sessionId, 'groups'] as const,
+  sessionChats: (sessionId: string) => ['sessions', sessionId, 'chats'] as const,
   webhooks: ['webhooks'] as const,
   apiKeys: ['apiKeys'] as const,
   logs: (params: { severity?: string; page: number; limit: number }) =>
@@ -49,6 +50,15 @@ export function useSessionGroupsQuery(sessionId: string, enabled: boolean) {
     queryFn: () => sessionApi.getGroups(sessionId),
     enabled: enabled && !!sessionId,
     staleTime: 60_000,
+  });
+}
+
+export function useSessionChatsQuery(sessionId: string, enabled: boolean) {
+  return useQuery({
+    queryKey: queryKeys.sessionChats(sessionId),
+    queryFn: () => sessionApi.getChats(sessionId),
+    enabled: enabled && !!sessionId,
+    staleTime: 10_000,
   });
 }
 
@@ -199,6 +209,14 @@ export function useInfraStatusQuery() {
   return useQuery({
     queryKey: queryKeys.infraStatus,
     queryFn: infraApi.getStatus,
+    staleTime: 30_000,
+  });
+}
+
+export function useInfraConfigQuery() {
+  return useQuery({
+    queryKey: ['infra', 'config'],
+    queryFn: infraApi.getConfig,
     staleTime: 30_000,
   });
 }

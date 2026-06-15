@@ -26,23 +26,7 @@ export function Sessions() {
   const [selectedSession, setSelectedSession] = useState<Session | null>(null);
   const [deleteConfirmId, setDeleteConfirmId] = useState<string | null>(null);
 
-  useWebSocket({
-    onSessionStatus: useCallback(
-      (event: { sessionId: string; status: string }) => {
-        setSessions(prev =>
-          prev.map(s => (s.id === event.sessionId ? { ...s, status: event.status as Session['status'] } : s)),
-        );
-        if (event.status === 'ready') {
-          toast.success(t('sessions.toasts.readyTitle'), t('sessions.toasts.readyDesc'));
-        } else if (event.status === 'disconnected') {
-          toast.warning(t('sessions.toasts.disconnectedTitle'), t('sessions.toasts.disconnectedDesc'));
-        }
-      },
-      [toast, t],
-    ),
-  });
-
-  const fetchSessions = async () => {
+  const fetchSessions = useCallback(async () => {
     try {
       setLoading(true);
       const data = await sessionApi.list();
@@ -52,7 +36,35 @@ export function Sessions() {
     } finally {
       setLoading(false);
     }
-  };
+  }, [t]);
+
+  const { isConnected, subscribe } = useWebSocket({
+    onSessionStatus: useCallback(
+      (event: { sessionId: string; status: string }) => {
+        setSessions(prev =>
+          prev.map(s => (s.id === event.sessionId ? { ...s, status: event.status as Session['status'] } : s)),
+        );
+        if (event.status === 'ready') {
+          toast.success(t('sessions.toasts.readyTitle'), t('sessions.toasts.readyDesc'));
+        } else if (event.status === 'disconnected') {
+          toast.warning(t('sessions.toasts.disconnectedTitle'), t('sessions.toasts.disconnectedDesc'));
+        } else if (event.status === 'failed') {
+          // Refresh so the card picks up the lastError reason from the API.
+          void fetchSessions();
+          toast.error(t('sessions.toasts.failedTitle'), t('sessions.toasts.failedDesc'));
+        }
+      },
+      [toast, t, fetchSessions],
+    ),
+  });
+
+  // The gateway delivers events only to subscribed rooms; join the wildcard
+  // session.status room so status changes for every session are received live.
+  useEffect(() => {
+    if (isConnected) {
+      subscribe('*', ['session.status', 'session.qr']);
+    }
+  }, [isConnected, subscribe]);
 
   useEffect(() => {
     fetchSessions();
@@ -481,6 +493,14 @@ export function Sessions() {
                     <span className="info-label">{t('sessions.card.lastActive')}</span>
                     <span className="info-value">{formatLastActive(session.lastActive)}</span>
                   </div>
+                  {session.status === 'failed' && session.lastError ? (
+                    <div className="info-row session-error">
+                      <span className="info-label">{t('sessions.card.error')}</span>
+                      <span className="info-value error-text" title={session.lastError}>
+                        {session.lastError}
+                      </span>
+                    </div>
+                  ) : null}
                 </div>
               )}
 

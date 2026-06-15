@@ -3,7 +3,7 @@ import { getRepositoryToken } from '@nestjs/typeorm';
 import { Repository } from 'typeorm';
 import { UnauthorizedException, NotFoundException } from '@nestjs/common';
 import { createHash } from 'crypto';
-import { AuthService } from './auth.service';
+import { AuthService, resolveSeedApiKey } from './auth.service';
 import { ApiKey, ApiKeyRole } from './entities/api-key.entity';
 
 // Helpers
@@ -27,6 +27,40 @@ function createMockApiKey(overrides: Partial<ApiKey> = {}): ApiKey {
     ...overrides,
   };
 }
+
+describe('resolveSeedApiKey (first-boot default admin key)', () => {
+  const ORIGINAL_ENV = process.env;
+
+  beforeEach(() => {
+    process.env = { ...ORIGINAL_ENV };
+    delete process.env.API_MASTER_KEY;
+    delete process.env.ALLOW_DEV_API_KEY;
+  });
+
+  afterEach(() => {
+    process.env = ORIGINAL_ENV;
+  });
+
+  it('uses API_MASTER_KEY verbatim when set', () => {
+    process.env.API_MASTER_KEY = 'my-explicit-master-key';
+    expect(resolveSeedApiKey()).toBe('my-explicit-master-key');
+  });
+
+  it('generates a random owa_k1_ key by default (no opt-in)', () => {
+    expect(resolveSeedApiKey()).toMatch(/^owa_k1_[a-f0-9]{64}$/);
+  });
+
+  it('returns the fixed dev-admin-key only when ALLOW_DEV_API_KEY=true', () => {
+    process.env.ALLOW_DEV_API_KEY = 'true';
+    expect(resolveSeedApiKey()).toBe('dev-admin-key');
+  });
+
+  it('prefers API_MASTER_KEY over the dev opt-in', () => {
+    process.env.API_MASTER_KEY = 'master-wins';
+    process.env.ALLOW_DEV_API_KEY = 'true';
+    expect(resolveSeedApiKey()).toBe('master-wins');
+  });
+});
 
 describe('AuthService', () => {
   let service: AuthService;

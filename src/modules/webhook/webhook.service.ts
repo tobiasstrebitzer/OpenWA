@@ -10,6 +10,7 @@ import { CreateWebhookDto, UpdateWebhookDto } from './dto';
 import { createLogger } from '../../common/services/logger.service';
 import { QUEUE_NAMES } from '../queue/queue-names';
 import { generateIdempotencyKey, generateDeliveryId } from './utils/idempotency.util';
+import { assertSafeWebhookUrl, isSsrfProtectionEnabled } from '../../common/security/ssrf-guard';
 import { HookManager } from '../../core/hooks';
 
 export interface WebhookPayload {
@@ -133,6 +134,9 @@ export class WebhookService {
     }
 
     try {
+      if (isSsrfProtectionEnabled()) {
+        await assertSafeWebhookUrl(webhook.url);
+      }
       const response = await fetch(webhook.url, {
         method: 'POST',
         headers,
@@ -315,6 +319,9 @@ export class WebhookService {
     }
 
     try {
+      if (isSsrfProtectionEnabled()) {
+        await assertSafeWebhookUrl(webhook.url);
+      }
       const response = await fetch(webhook.url, {
         method: 'POST',
         headers,

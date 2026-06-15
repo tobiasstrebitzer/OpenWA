@@ -16,6 +16,8 @@ export interface Session {
   lastActive?: string;
   createdAt: string;
   updatedAt: string;
+  /** Human-readable reason for the most recent terminal engine failure (set only when status is 'failed'). */
+  lastError?: string | null;
 }
 
 export interface SessionStats {
@@ -42,7 +44,7 @@ export interface ApiKey {
   id: string;
   name: string;
   keyPrefix: string;
-  role: 'admin' | 'user' | 'readonly';
+  role: 'admin' | 'operator' | 'viewer';
   allowedIps?: string[];
   allowedSessions?: string[];
   isActive: boolean;
@@ -74,6 +76,43 @@ export interface MessageResponse {
   timestamp: number;
 }
 
+// Chat summary returned by GET /sessions/:id/chats (mirrors the backend ChatSummary).
+export interface Chat {
+  id: string;
+  name: string;
+  isGroup: boolean;
+  unreadCount: number;
+  timestamp: number;
+  lastMessage?: string;
+}
+
+export interface ChatMessage {
+  id: string;
+  waMessageId?: string;
+  chatId: string;
+  from: string;
+  to: string;
+  body: string;
+  type: string;
+  direction: 'incoming' | 'outgoing';
+  status: 'pending' | 'sent' | 'delivered' | 'read' | 'failed';
+  timestamp?: number;
+  createdAt: string;
+  metadata?: {
+    media?: { mimetype: string; filename?: string; data?: string };
+    quotedMessage?: { id: string; body: string };
+    reactions?: Record<string, string>;
+  };
+}
+
+export interface SendMediaPayload {
+  base64?: string;
+  url?: string;
+  mimetype?: string;
+  filename?: string;
+  caption?: string;
+}
+
 export interface HealthStatus {
   status: 'ok' | 'error';
   timestamp?: string;
@@ -94,6 +133,35 @@ export interface InfraStatus {
   };
   storage: { type: 'local' | 's3'; path?: string; bucket?: string };
   engine: { type: string; headless: boolean };
+}
+
+// Saved infrastructure config (from data/.env.generated) used to hydrate the form.
+// Secrets are never returned — `*Set` flags indicate whether a value is stored.
+export interface SavedConfig {
+  database: {
+    type: 'sqlite' | 'postgres';
+    builtIn: boolean;
+    host: string;
+    port: string;
+    username: string;
+    database: string;
+    poolSize: number;
+    sslEnabled: boolean;
+    sslRejectUnauthorized: boolean;
+    passwordSet: boolean;
+  };
+  redis: { enabled: boolean; builtIn: boolean; host: string; port: string; passwordSet: boolean };
+  queue: { enabled: boolean };
+  storage: {
+    type: 'local' | 's3';
+    builtIn: boolean;
+    localPath: string;
+    s3Bucket: string;
+    s3Region: string;
+    s3Endpoint: string;
+    s3CredentialsSet: boolean;
+  };
+  engine: { headless: boolean; sessionDataPath: string; browserArgs: string };
 }
 
 export interface SaveConfigPayload {
@@ -189,7 +257,18 @@ export const sessionApi = {
   stop: (id: string) => request<Session>(`/sessions/${id}/stop`, { method: 'POST' }),
   getQR: (id: string) => request<{ qrCode: string; status: string }>(`/sessions/${id}/qr`),
   getStats: () => request<SessionStats>('/sessions/stats/overview'),
-  getGroups: (id: string) => request<{ id: string; name: string }[]>(`/sessions/${id}/groups`),
+  getGroups: (id: string) =>
+    request<{ id: string; name: string; linkedParentJID?: string | null }[]>(`/sessions/${id}/groups`),
+  getChats: (id: string) => request<Chat[]>(`/sessions/${id}/chats`),
+  markChatRead: (id: string, chatId: string) =>
+    request<{ success: boolean }>(`/sessions/${id}/chats/read`, {
+      method: 'POST',
+      body: JSON.stringify({ chatId }),
+    }),
+  getChatMessages: (id: string, chatId: string, limit = 100) =>
+    request<{ messages: ChatMessage[]; total: number }>(
+      `/sessions/${id}/messages?chatId=${encodeURIComponent(chatId)}&limit=${limit}`,
+    ),
 };
 
 // =============================================================================
@@ -291,6 +370,31 @@ export const messageApi = {
       method: 'POST',
       body: JSON.stringify({ chatId, url, filename }),
     }),
+  sendMedia: (
+    sessionId: string,
+    chatId: string,
+    mediaType: 'image' | 'video' | 'audio' | 'document',
+    payload: SendMediaPayload,
+  ) =>
+    request<MessageResponse>(`/sessions/${sessionId}/messages/send-${mediaType}`, {
+      method: 'POST',
+      body: JSON.stringify({ chatId, ...payload }),
+    }),
+  reply: (sessionId: string, data: { chatId: string; quotedMessageId: string; text: string }) =>
+    request<MessageResponse>(`/sessions/${sessionId}/messages/reply`, {
+      method: 'POST',
+      body: JSON.stringify(data),
+    }),
+  react: (sessionId: string, data: { chatId: string; messageId: string; emoji: string }) =>
+    request<void>(`/sessions/${sessionId}/messages/react`, {
+      method: 'POST',
+      body: JSON.stringify(data),
+    }),
+  delete: (sessionId: string, data: { chatId: string; messageId: string; forEveryone?: boolean }) =>
+    request<void>(`/sessions/${sessionId}/messages/delete`, {
+      method: 'POST',
+      body: JSON.stringify(data),
+    }),
 };
 
 // =============================================================================
@@ -304,6 +408,7 @@ export const healthApi = {
 
 export const infraApi = {
   getStatus: () => request<InfraStatus>('/infra/status'),
+  getConfig: () => request<SavedConfig>('/infra/config'),
   updateConfig: (config: Partial<InfraStatus>) =>
     request<InfraStatus>('/infra/config', {
       method: 'PUT',

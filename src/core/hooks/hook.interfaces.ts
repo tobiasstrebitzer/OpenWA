@@ -10,6 +10,7 @@ export type HookEvent =
   | 'session:ready'
   | 'session:qr'
   | 'session:disconnected'
+  | 'session:error'
   | 'session:deleted'
   // Message lifecycle
   | 'message:received'

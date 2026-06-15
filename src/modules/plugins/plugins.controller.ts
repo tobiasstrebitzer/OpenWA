@@ -2,6 +2,8 @@ import { Controller, Get, Post, Put, Param, Body, HttpCode, HttpStatus } from '@
 import { ApiTags, ApiOperation, ApiResponse } from '@nestjs/swagger';
 import { PluginsService } from './plugins.service';
 import { PluginDto, PluginConfigDto } from './dto/plugin.dto';
+import { RequireRole } from '../auth/decorators/auth.decorators';
+import { ApiKeyRole } from '../auth/entities/api-key.entity';
 
 @ApiTags('plugins')
 @Controller('plugins')
@@ -24,6 +26,7 @@ export class PluginsController {
   }
 
   @Post(':id/enable')
+  @RequireRole(ApiKeyRole.ADMIN)
   @HttpCode(HttpStatus.OK)
   @ApiOperation({ summary: 'Enable a plugin' })
   @ApiResponse({ status: 200, description: 'Plugin enabled successfully' })
@@ -32,6 +35,7 @@ export class PluginsController {
   }
 
   @Post(':id/disable')
+  @RequireRole(ApiKeyRole.ADMIN)
   @HttpCode(HttpStatus.OK)
   @ApiOperation({ summary: 'Disable a plugin' })
   @ApiResponse({ status: 200, description: 'Plugin disabled successfully' })
@@ -40,6 +44,7 @@ export class PluginsController {
   }
 
   @Put(':id/config')
+  @RequireRole(ApiKeyRole.ADMIN)
   @ApiOperation({ summary: 'Update plugin configuration' })
   @ApiResponse({ status: 200, description: 'Plugin configuration updated' })
   updateConfig(@Param('id') id: string, @Body() configDto: PluginConfigDto): { success: boolean; message: string } {

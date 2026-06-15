@@ -3,9 +3,13 @@ import { InjectRepository } from '@nestjs/typeorm';
 import { Repository } from 'typeorm';
 import { SessionService } from '../session/session.service';
 import { SendTextMessageDto, SendMediaMessageDto, MessageResponseDto } from './dto';
+import { SendTemplateMessageDto } from './dto/send-template.dto';
 import { MediaInput } from '../../engine/interfaces/whatsapp-engine.interface';
 import { Message, MessageDirection, MessageStatus } from './entities/message.entity';
 import { HookManager } from '../../core/hooks';
+import { TemplateService } from '../template/template.service';
+import { renderTemplate } from '../../common/utils/template-render';
+import { createLogger } from '../../common/services/logger.service';
 
 export interface GetMessagesOptions {
   chatId?: string;
@@ -15,11 +19,14 @@ export interface GetMessagesOptions {
 
 @Injectable()
 export class MessageService {
+  private readonly logger = createLogger('MessageService');
+
   constructor(
     @InjectRepository(Message, 'data')
     private readonly messageRepository: Repository<Message>,
     private readonly sessionService: SessionService,
     private readonly hookManager: HookManager,
+    private readonly templateService: TemplateService,
   ) {}
 
   async sendText(sessionId: string, dto: SendTextMessageDto): Promise<MessageResponseDto> {
@@ -55,13 +62,9 @@ export class MessageService {
       message.timestamp = result.timestamp;
       await this.messageRepository.save(message);
 
-      // Execute hook after successful send
-      await this.hookManager.execute(
-        'message:sent',
-        { sessionId, result, input: finalDto },
-        { sessionId, source: 'MessageService' },
-      );
-
+      // Note: the `message:sent` hook is emitted solely by SessionService.onMessageCreate (engine
+      // `message_create`) with a consistent IncomingMessage payload for ALL sends (text, media,
+      // and phone-composed), so it is intentionally not fired here to avoid a double dispatch.
       return {
         messageId: result.id,
         timestamp: result.timestamp,
@@ -82,6 +85,28 @@ export class MessageService {
     }
   }
 
+  /**
+   * Resolve a stored template, render its body (with optional header/footer
+   * flattened using newlines) using the supplied variables, and delegate to the
+   * existing {@link sendText} path so plugin hooks, persistence, and status
+   * tracking are reused. Throws NotFoundException when the template cannot be
+   * resolved by id or name.
+   */
+  async sendTemplate(sessionId: string, dto: SendTemplateMessageDto): Promise<MessageResponseDto> {
+    const template = await this.templateService.resolve(sessionId, {
+      templateId: dto.templateId,
+      templateName: dto.templateName,
+    });
+
+    const vars = dto.vars ?? {};
+    const segments = [template.header, template.body, template.footer]
+      .filter((segment): segment is string => segment != null && segment.length > 0)
+      .map(segment => renderTemplate(segment, vars));
+    const text = segments.join('\n\n');
+
+    return this.sendText(sessionId, { chatId: dto.chatId, text });
+  }
+
   async sendImage(sessionId: string, dto: SendMediaMessageDto): Promise<MessageResponseDto> {
     const engine = this.getEngine(sessionId);
     const media = this.buildMediaInput(dto);
@@ -91,6 +116,9 @@ export class MessageService {
       chatId: dto.chatId,
       body: dto.caption || '',
       type: 'image',
+      metadata: {
+        media: { mimetype: dto.mimetype, filename: dto.filename, data: dto.base64 || dto.url },
+      },
     });
 
     try {
@@ -122,6 +150,9 @@ export class MessageService {
       chatId: dto.chatId,
       body: dto.caption || '',
       type: 'video',
+      metadata: {
+        media: { mimetype: dto.mimetype, filename: dto.filename, data: dto.base64 || dto.url },
+      },
     });
 
     try {
@@ -152,6 +183,9 @@ export class MessageService {
     const message = await this.saveOutgoingMessage(sessionId, {
       chatId: dto.chatId,
       type: 'audio',
+      metadata: {
+        media: { mimetype: dto.mimetype, filename: dto.filename, data: dto.base64 || dto.url },
+      },
     });
 
     try {
@@ -183,6 +217,9 @@ export class MessageService {
       chatId: dto.chatId,
       body: dto.filename || '',
       type: 'document',
+      metadata: {
+        media: { mimetype: dto.mimetype, filename: dto.filename, data: dto.base64 || dto.url },
+      },
     });
 
     try {
@@ -313,6 +350,9 @@ export class MessageService {
     const message = await this.saveOutgoingMessage(sessionId, {
       chatId: dto.chatId,
       type: 'sticker',
+      metadata: {
+        media: { mimetype: dto.mimetype, filename: dto.filename, data: dto.base64 || dto.url },
+      },
     });
 
     try {
@@ -341,11 +381,25 @@ export class MessageService {
   ): Promise<MessageResponseDto> {
     const engine = this.getEngine(sessionId);
 
+    // Resolve the quoted message body (best-effort) so the dashboard can render the reply preview.
+    let quotedBody = '';
+    try {
+      const quoted = await this.messageRepository.findOne({
+        where: { sessionId, waMessageId: dto.quotedMessageId },
+      });
+      quotedBody = quoted?.body || '';
+    } catch (err) {
+      this.logger.warn(`Failed to resolve quoted message ${dto.quotedMessageId}`, { error: String(err) });
+    }
+
     // Save message as pending BEFORE sending
     const message = await this.saveOutgoingMessage(sessionId, {
       chatId: dto.chatId,
       body: dto.text,
       type: 'text',
+      metadata: {
+        quotedMessage: { id: dto.quotedMessageId, body: quotedBody },
+      },
     });
 
     try {
@@ -426,6 +480,7 @@ export class MessageService {
       type: string;
       timestamp?: number;
       status?: MessageStatus;
+      metadata?: Record<string, unknown>;
     },
   ): Promise<Message> {
     const session = await this.sessionService.findOne(sessionId);
@@ -440,6 +495,7 @@ export class MessageService {
       direction: MessageDirection.OUTGOING,
       timestamp: data.timestamp,
       status: data.status ?? MessageStatus.PENDING,
+      metadata: data.metadata,
     });
     return this.messageRepository.save(message);
   }
@@ -456,6 +512,25 @@ export class MessageService {
     return engine.getMessageReactions(chatId, messageId);
   }
 
+  /** Maximum messages a single getChatHistory call may request from the engine. */
+  private static readonly MAX_CHAT_HISTORY_LIMIT = 100;
+
+  /**
+   * Fetch chat history live from WhatsApp (bypasses local DB).
+   * Returns the most recent `limit` messages for the given chat.
+   * When `includeMedia` is true, downloads media (base64) for messages that have it.
+   *
+   * `limit` is clamped to [1, 100] (and falls back to 50 for non-finite input) so a
+   * caller cannot ask the engine to fetch an unbounded number of messages.
+   */
+  async getChatHistory(sessionId: string, chatId: string, limit = 50, includeMedia = false) {
+    const engine = this.getEngine(sessionId);
+    const safeLimit = Number.isFinite(limit)
+      ? Math.min(Math.max(Math.trunc(limit), 1), MessageService.MAX_CHAT_HISTORY_LIMIT)
+      : 50;
+    return engine.getChatHistory(chatId, safeLimit, includeMedia);
+  }
+
   // ========== Delete Message ==========
 
   async deleteMessage(
@@ -464,6 +539,14 @@ export class MessageService {
   ): Promise<void> {
     const engine = this.getEngine(sessionId);
     await engine.deleteMessage(dto.chatId, dto.messageId, dto.forEveryone ?? true);
+
+    // Flag the stored message as revoked. No localized display string is persisted here;
+    // the dashboard renders the localized "message deleted" text.
+    try {
+      await this.messageRepository.update({ sessionId, waMessageId: dto.messageId }, { body: '', type: 'revoked' });
+    } catch (err) {
+      this.logger.warn(`Failed to flag deleted message ${dto.messageId} as revoked`, { error: String(err) });
+    }
   }
 
   private getEngine(sessionId: string) {

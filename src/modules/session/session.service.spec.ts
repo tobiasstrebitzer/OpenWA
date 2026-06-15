@@ -4,10 +4,12 @@ import { Repository, DataSource } from 'typeorm';
 import { NotFoundException, ConflictException, BadRequestException } from '@nestjs/common';
 import { SessionService } from './session.service';
 import { Session, SessionStatus } from './entities/session.entity';
+import { Message, MessageStatus } from '../message/entities/message.entity';
 import { EngineFactory } from '../../engine/engine.factory';
 import { EventsGateway } from '../events/events.gateway';
 import { WebhookService } from '../webhook/webhook.service';
 import { HookManager } from '../../core/hooks';
+import { IncomingMessage, EngineEventCallbacks } from '../../engine/interfaces/whatsapp-engine.interface';
 
 function createMockSession(overrides: Partial<Session> = {}): Session {
   return {
@@ -30,6 +32,7 @@ function createMockSession(overrides: Partial<Session> = {}): Session {
 describe('SessionService', () => {
   let service: SessionService;
   let repository: jest.Mocked<Partial<Repository<Session>>>;
+  let messageRepository: jest.Mocked<Partial<Repository<Message>>>;
   let dataSource: jest.Mocked<Partial<DataSource>>;
   let engineFactory: jest.Mocked<Partial<EngineFactory>>;
   let eventsGateway: jest.Mocked<Partial<EventsGateway>>;
@@ -48,6 +51,14 @@ describe('SessionService', () => {
       update: jest.fn(),
     };
 
+    messageRepository = {
+      find: jest.fn().mockResolvedValue([]),
+      findOne: jest.fn().mockResolvedValue(null),
+      create: jest.fn(),
+      save: jest.fn().mockResolvedValue(undefined),
+      update: jest.fn().mockResolvedValue({ affected: 1 }),
+    };
+
     dataSource = {
       transaction: jest.fn().mockImplementation(async (cb: (manager: unknown) => Promise<unknown>) => {
         const manager = {
@@ -64,6 +75,8 @@ describe('SessionService', () => {
       disconnect: jest.fn().mockResolvedValue(undefined),
       getQRCode: jest.fn().mockReturnValue(null),
       getGroups: jest.fn().mockResolvedValue([]),
+      getChats: jest.fn().mockResolvedValue([]),
+      sendSeen: jest.fn().mockResolvedValue(true),
     };
 
     engineFactory = {
@@ -73,6 +86,9 @@ describe('SessionService', () => {
     eventsGateway = {
       emitSessionStatus: jest.fn(),
       emitMessage: jest.fn(),
+      emitMessageSent: jest.fn(),
+      emitMessageRevoked: jest.fn(),
+      emitMessageReaction: jest.fn(),
     };
 
     webhookService = {
@@ -89,6 +105,10 @@ describe('SessionService', () => {
         {
           provide: getRepositoryToken(Session, 'data'),
           useValue: repository,
+        },
+        {
+          provide: getRepositoryToken(Message, 'data'),
+          useValue: messageRepository,
         },
         {
           provide: getDataSourceToken('data'),
@@ -251,6 +271,233 @@ describe('SessionService', () => {
         expect.any(Object),
       );
     });
+
+    it('persists INITIALIZING before engine.initialize() runs (no post-init clobber) — #219', async () => {
+      const session = createMockSession();
+      (repository.findOne as jest.Mock).mockResolvedValue(session);
+      (repository.update as jest.Mock).mockResolvedValue({ affected: 1 });
+
+      let initializingPersistedBeforeInit = false;
+      mockEngine.initialize.mockImplementation(() => {
+        initializingPersistedBeforeInit = (repository.update as jest.Mock).mock.calls.some(
+          (call: unknown[]) => (call[1] as { status?: SessionStatus })?.status === SessionStatus.INITIALIZING,
+        );
+        return Promise.resolve();
+      });
+
+      await service.start('sess-uuid-1');
+
+      // The engine drives status forward via callbacks during initialize(); writing
+      // INITIALIZING afterwards would clobber that progress, so it must be set before.
+      expect(initializingPersistedBeforeInit).toBe(true);
+      const initializingWrites = (repository.update as jest.Mock).mock.calls.filter(
+        (call: unknown[]) => (call[1] as { status?: SessionStatus })?.status === SessionStatus.INITIALIZING,
+      );
+      expect(initializingWrites).toHaveLength(1);
+    });
+  });
+
+  // ── engine onError / lastError surfacing (#219) ───────────────────
+
+  describe('engine onError', () => {
+    type EngineCallbacks = { onError?: (reason: string) => void; onReady?: (phone: string, name: string) => void };
+
+    const startAndCapture = async (): Promise<EngineCallbacks> => {
+      const session = createMockSession();
+      (repository.findOne as jest.Mock).mockResolvedValue(session);
+      (repository.update as jest.Mock).mockResolvedValue({ affected: 1 });
+      let captured: EngineCallbacks = {};
+      mockEngine.initialize.mockImplementation((cb: EngineCallbacks) => {
+        captured = cb;
+        return Promise.resolve();
+      });
+      await service.start('sess-uuid-1');
+      return captured;
+    };
+
+    it('marks the session FAILED and runs the session:error hook on a terminal engine error', async () => {
+      const callbacks = await startAndCapture();
+
+      callbacks.onError?.('Failed to launch the browser process: spawn ENOENT');
+
+      expect(repository.update).toHaveBeenCalledWith('sess-uuid-1', { status: SessionStatus.FAILED });
+      expect(hookManager.execute).toHaveBeenCalledWith(
+        'session:error',
+        expect.objectContaining({ reason: 'Failed to launch the browser process: spawn ENOENT' }),
+        expect.objectContaining({ sessionId: 'sess-uuid-1' }),
+      );
+    });
+
+    it('surfaces the failure reason via lastError when the session is FAILED', async () => {
+      const callbacks = await startAndCapture();
+      callbacks.onError?.('chromium missing');
+
+      (repository.findOne as jest.Mock).mockResolvedValue(createMockSession({ status: SessionStatus.FAILED }));
+      const result = await service.findOne('sess-uuid-1');
+
+      expect(result.lastError).toBe('chromium missing');
+    });
+
+    it('does not surface lastError once the session has recovered', async () => {
+      const callbacks = await startAndCapture();
+      callbacks.onError?.('transient failure');
+      // Engine later becomes ready, which clears the stored reason.
+      callbacks.onReady?.('628123', 'Tester');
+
+      (repository.findOne as jest.Mock).mockResolvedValue(createMockSession({ status: SessionStatus.READY }));
+      const result = await service.findOne('sess-uuid-1');
+
+      expect(result.lastError).toBeUndefined();
+    });
+  });
+
+  // ── engine message-event webhook dispatch ─────────────────────────
+
+  describe('engine message-event webhook dispatch', () => {
+    const flush = (): Promise<void> => new Promise(resolve => setImmediate(resolve));
+
+    async function startAndCaptureCallbacks(): Promise<EngineEventCallbacks> {
+      (repository.findOne as jest.Mock).mockResolvedValue(createMockSession());
+      (repository.update as jest.Mock).mockResolvedValue({ affected: 1 });
+      await service.start('sess-uuid-1');
+      const calls = mockEngine.initialize.mock.calls as [EngineEventCallbacks][];
+      return calls[0][0];
+    }
+
+    function dispatchedEvents(event: string): unknown[][] {
+      const calls = (webhookService.dispatch as jest.Mock).mock.calls as unknown[][];
+      return calls.filter(call => call[1] === event);
+    }
+
+    const makeMessage = (overrides: Partial<IncomingMessage> = {}): IncomingMessage => ({
+      id: 'wa-msg-1',
+      from: 'peer@c.us',
+      to: 'me@c.us',
+      chatId: 'peer@c.us',
+      body: 'hello',
+      type: 'chat',
+      timestamp: 1706868000,
+      fromMe: false,
+      isGroup: false,
+      ...overrides,
+    });
+
+    it('dispatches message.sent exactly once for an outgoing (message_create) event', async () => {
+      const callbacks = await startAndCaptureCallbacks();
+      expect(typeof callbacks.onMessageCreate).toBe('function');
+
+      callbacks.onMessageCreate!(makeMessage({ id: 'wa-out-1', from: 'me@c.us', to: 'peer@c.us', fromMe: true }));
+      await flush();
+
+      const sent = dispatchedEvents('message.sent');
+      expect(sent).toHaveLength(1);
+      expect(sent[0][0]).toBe('sess-uuid-1');
+    });
+
+    it('does not dispatch message.sent for an incoming message_create event (fromMe=false)', async () => {
+      const callbacks = await startAndCaptureCallbacks();
+
+      callbacks.onMessageCreate!(makeMessage({ fromMe: false }));
+      await flush();
+
+      expect(dispatchedEvents('message.sent')).toHaveLength(0);
+    });
+
+    it('does not dispatch message.sent for a status@broadcast (Story) post', async () => {
+      const callbacks = await startAndCaptureCallbacks();
+
+      callbacks.onMessageCreate!(
+        makeMessage({ id: 'wa-status', from: 'me@c.us', to: 'status@broadcast', fromMe: true }),
+      );
+      await flush();
+
+      expect(dispatchedEvents('message.sent')).toHaveLength(0);
+    });
+
+    it('emits the realtime WS event for an outgoing message as message.sent, not message.received', async () => {
+      const callbacks = await startAndCaptureCallbacks();
+
+      callbacks.onMessageCreate!(makeMessage({ id: 'wa-out-2', from: 'me@c.us', to: 'peer@c.us', fromMe: true }));
+      await flush();
+
+      expect(eventsGateway.emitMessageSent as jest.Mock).toHaveBeenCalledWith('sess-uuid-1', expect.anything());
+      expect(eventsGateway.emitMessage as jest.Mock).not.toHaveBeenCalled();
+    });
+
+    it('dispatches message.ack but never message.sent on a message_ack event', async () => {
+      const callbacks = await startAndCaptureCallbacks();
+      expect(typeof callbacks.onMessageAck).toBe('function');
+
+      callbacks.onMessageAck!('wa-out-1', 3);
+      await flush();
+
+      expect(dispatchedEvents('message.ack')).toHaveLength(1);
+      expect(dispatchedEvents('message.sent')).toHaveLength(0);
+    });
+
+    it('reflects delivery on the stored message: ack=2 updates status to DELIVERED (#220)', async () => {
+      const callbacks = await startAndCaptureCallbacks();
+
+      callbacks.onMessageAck!('wa-out-1', 2);
+      await flush();
+
+      expect(messageRepository.update as jest.Mock).toHaveBeenCalledWith(
+        expect.objectContaining({ waMessageId: 'wa-out-1' }),
+        { status: MessageStatus.DELIVERED },
+      );
+    });
+
+    it('marks the stored message FAILED and dispatches message.failed on an error ack (<0) (#220)', async () => {
+      const callbacks = await startAndCaptureCallbacks();
+
+      callbacks.onMessageAck!('wa-out-1', -1);
+      await flush();
+
+      expect(messageRepository.update as jest.Mock).toHaveBeenCalledWith(
+        expect.objectContaining({ waMessageId: 'wa-out-1' }),
+        { status: MessageStatus.FAILED },
+      );
+      expect(dispatchedEvents('message.failed')).toHaveLength(1);
+    });
+
+    it('does not upgrade the stored status (or emit message.failed) for a server-only ack (1)', async () => {
+      const callbacks = await startAndCaptureCallbacks();
+
+      callbacks.onMessageAck!('wa-out-1', 1);
+      await flush();
+
+      expect(messageRepository.update as jest.Mock).not.toHaveBeenCalled();
+      expect(dispatchedEvents('message.failed')).toHaveLength(0);
+    });
+
+    it('dispatches message.received (not message.sent) on an incoming message event', async () => {
+      const callbacks = await startAndCaptureCallbacks();
+
+      callbacks.onMessage!(makeMessage({ fromMe: false }));
+      await flush();
+
+      expect(dispatchedEvents('message.received')).toHaveLength(1);
+      expect(dispatchedEvents('message.sent')).toHaveLength(0);
+    });
+
+    it('dispatches the message.revoked webhook and WS event on a revoke (#152)', async () => {
+      const callbacks = await startAndCaptureCallbacks();
+      expect(typeof callbacks.onMessageRevoked).toBe('function');
+
+      callbacks.onMessageRevoked!({
+        id: 'wa-rev-1',
+        chatId: 'peer@c.us',
+        from: 'peer@c.us',
+        to: 'me@c.us',
+        type: 'revoked',
+        body: '',
+        timestamp: 1706868000,
+      });
+      await flush();
+
+      expect(dispatchedEvents('message.revoked')).toHaveLength(1);
+      expect(eventsGateway.emitMessageRevoked as jest.Mock).toHaveBeenCalledWith('sess-uuid-1', expect.anything());
+    });
   });
 
   // ── stop ──────────────────────────────────────────────────────────
@@ -327,6 +574,111 @@ describe('SessionService', () => {
       expect(stats.disconnected).toBe(1);
       expect(stats.byStatus[SessionStatus.READY]).toBe(2);
       expect(stats.memoryUsage).toBeDefined();
+    });
+  });
+
+  // ── getChats ──────────────────────────────────────────────────────
+
+  describe('getChats', () => {
+    it('should delegate to engine.getChats for a started session', async () => {
+      const session = createMockSession();
+      (repository.findOne as jest.Mock).mockResolvedValue(session);
+      (repository.update as jest.Mock).mockResolvedValue({ affected: 1 });
+
+      await service.start('sess-uuid-1');
+
+      const chats = [{ id: '123@c.us', name: 'Alice', isGroup: false, unreadCount: 2, timestamp: 1700000000 }];
+      mockEngine.getChats.mockResolvedValue(chats);
+
+      const result = await service.getChats('sess-uuid-1');
+
+      expect(mockEngine.getChats).toHaveBeenCalled();
+      expect(result).toEqual(chats);
+    });
+
+    it('should throw BadRequestException when session is not started', async () => {
+      const session = createMockSession();
+      (repository.findOne as jest.Mock).mockResolvedValue(session);
+
+      await expect(service.getChats('sess-uuid-1')).rejects.toThrow(BadRequestException);
+    });
+  });
+
+  // ── sendSeen (markChatRead) ───────────────────────────────────────
+
+  describe('sendSeen', () => {
+    it('should delegate to engine.sendSeen with the chatId', async () => {
+      const session = createMockSession();
+      (repository.findOne as jest.Mock).mockResolvedValue(session);
+      (repository.update as jest.Mock).mockResolvedValue({ affected: 1 });
+
+      await service.start('sess-uuid-1');
+      mockEngine.sendSeen.mockResolvedValue(true);
+
+      const result = await service.sendSeen('sess-uuid-1', '123@c.us');
+
+      expect(mockEngine.sendSeen).toHaveBeenCalledWith('123@c.us');
+      expect(result).toBe(true);
+    });
+
+    it('should throw BadRequestException when session is not started', async () => {
+      const session = createMockSession();
+      (repository.findOne as jest.Mock).mockResolvedValue(session);
+
+      await expect(service.sendSeen('sess-uuid-1', '123@c.us')).rejects.toThrow(BadRequestException);
+    });
+  });
+
+  // ── onMessageRevoked (no localized string) ────────────────────────
+
+  describe('onMessageRevoked callback', () => {
+    it('persists an empty body with type "revoked" and emits no localized string', async () => {
+      const session = createMockSession();
+      (repository.findOne as jest.Mock).mockResolvedValue(session);
+      (repository.update as jest.Mock).mockResolvedValue({ affected: 1 });
+      (messageRepository.update as jest.Mock).mockResolvedValue({ affected: 1 });
+
+      await service.start('sess-uuid-1');
+
+      // Grab the callbacks object passed to engine.initialize.
+      const initializeCall = mockEngine.initialize.mock.calls[0] as unknown[];
+      const callbacks = initializeCall[0] as {
+        onMessageRevoked: (m: { id: string; type: string; body: string }) => void;
+      };
+
+      const revoked = {
+        id: 'WA_MSG_1',
+        chatId: '123@c.us',
+        from: '123@c.us',
+        to: 'me@c.us',
+        type: 'revoked' as const,
+        body: '' as const,
+        timestamp: 1700000000,
+      };
+
+      callbacks.onMessageRevoked(revoked);
+      // Allow the queued microtask (repository.update().then()) to resolve.
+      await Promise.resolve();
+      await Promise.resolve();
+
+      // The stored update must carry an EMPTY body and the 'revoked' type — no display string.
+      expect(messageRepository.update).toHaveBeenCalledWith(
+        { sessionId: 'sess-uuid-1', waMessageId: 'WA_MSG_1' },
+        { body: '', type: 'revoked' },
+      );
+
+      // The structured payload emitted to clients must not contain any localized text.
+      expect(eventsGateway.emitMessageRevoked).toHaveBeenCalledWith(
+        'sess-uuid-1',
+        expect.objectContaining({
+          id: 'WA_MSG_1',
+          type: 'revoked',
+          body: '',
+        }),
+      );
+      const revokedCall = (eventsGateway.emitMessageRevoked as jest.Mock).mock.calls[0] as unknown[];
+      const emittedPayload = revokedCall[1] as { body: string };
+      expect(emittedPayload.body).toBe('');
     });
   });
 

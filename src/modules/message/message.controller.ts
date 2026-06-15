@@ -3,6 +3,7 @@ import { ApiTags, ApiOperation, ApiResponse, ApiParam, ApiQuery } from '@nestjs/
 import { MessageService } from './message.service';
 import { BulkMessageService } from './bulk-message.service';
 import { SendTextMessageDto, SendMediaMessageDto, MessageResponseDto } from './dto';
+import { SendTemplateMessageDto } from './dto/send-template.dto';
 import { SendBulkMessageDto, BulkMessageResponseDto } from './dto/bulk-message.dto';
 import { RequireRole } from '../auth/decorators/auth.decorators';
 import { ApiKeyRole } from '../auth/entities/api-key.entity';
@@ -54,6 +55,27 @@ export class MessageController {
   @ApiResponse({ status: 404, description: 'Session not found' })
   async sendText(@Param('sessionId') sessionId: string, @Body() dto: SendTextMessageDto): Promise<MessageResponseDto> {
     return this.messageService.sendText(sessionId, dto);
+  }
+
+  @Post('send-template')
+  @RequireRole(ApiKeyRole.OPERATOR)
+  @ApiOperation({ summary: 'Render a stored text template and send it as a text message' })
+  @ApiParam({ name: 'sessionId', description: 'Session ID' })
+  @ApiResponse({
+    status: 201,
+    description: 'Template rendered and sent',
+    type: MessageResponseDto,
+  })
+  @ApiResponse({
+    status: 400,
+    description: 'Session not active or invalid request',
+  })
+  @ApiResponse({ status: 404, description: 'Session or template not found' })
+  async sendTemplate(
+    @Param('sessionId') sessionId: string,
+    @Body() dto: SendTemplateMessageDto,
+  ): Promise<MessageResponseDto> {
+    return this.messageService.sendTemplate(sessionId, dto);
   }
 
   @Post('send-image')
@@ -238,6 +260,40 @@ export class MessageController {
   ): Promise<{ success: boolean }> {
     await this.messageService.reactToMessage(sessionId, dto);
     return { success: true };
+  }
+
+  @Get(':chatId/history')
+  @ApiOperation({
+    summary: 'Fetch chat history live from WhatsApp',
+    description:
+      'Reads messages directly from the WhatsApp client for the given chat, bypassing the local DB. ' +
+      'Useful for retrieving messages that arrived before the gateway was started.',
+  })
+  @ApiParam({ name: 'sessionId', description: 'Session ID' })
+  @ApiParam({ name: 'chatId', description: 'Chat ID (e.g. 1234567890@c.us or groupId@g.us)' })
+  @ApiQuery({ name: 'limit', required: false, type: Number, description: 'Max messages to return (default 50)' })
+  @ApiQuery({
+    name: 'includeMedia',
+    required: false,
+    type: Boolean,
+    description: 'When true, downloads media (base64) for messages that have it. Slower; default false.',
+  })
+  @ApiResponse({ status: 200, description: 'Chat history (most recent messages)' })
+  async getChatHistory(
+    @Param('sessionId') sessionId: string,
+    @Param('chatId') chatId: string,
+    @Query('limit') limit?: string,
+    @Query('includeMedia') includeMedia?: string,
+  ) {
+    // Parse the limit defensively: a non-numeric query value (?limit=abc) yields NaN,
+    // so fall back to undefined and let the service apply its default + [1,100] clamp.
+    const parsedLimit = limit ? parseInt(limit, 10) : undefined;
+    return this.messageService.getChatHistory(
+      sessionId,
+      chatId,
+      parsedLimit !== undefined && !Number.isNaN(parsedLimit) ? parsedLimit : undefined,
+      includeMedia === 'true' || includeMedia === '1',
+    );
   }
 
   @Get(':chatId/:messageId/reactions')

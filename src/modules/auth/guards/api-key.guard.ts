@@ -1,4 +1,4 @@
-import { Injectable, CanActivate, ExecutionContext, UnauthorizedException } from '@nestjs/common';
+import { Injectable, CanActivate, ExecutionContext, UnauthorizedException, ForbiddenException } from '@nestjs/common';
 import { Reflector } from '@nestjs/core';
 import { ConfigService } from '@nestjs/config';
 import { Request } from 'express';
@@ -44,7 +44,7 @@ export class ApiKeyGuard implements CanActivate {
     ]);
 
     if (requiredRole && !this.authService.hasPermission(apiKey, requiredRole)) {
-      throw new UnauthorizedException(`Insufficient permissions. Required: ${requiredRole}`);
+      throw new ForbiddenException(`Insufficient permissions. Required: ${requiredRole}`);
     }
 
     // Attach API key to request for use in controllers

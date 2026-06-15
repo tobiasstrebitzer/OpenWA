@@ -49,7 +49,85 @@ flowchart TD
     A3 -->|No| A3a[Check message format]
 ```
 
-## 12.2 Connection Issues
+## 12.2 Podman Compatibility
+
+### Issue: `FileNotFoundError` / Docker socket missing
+
+**Symptoms:**
+
+```text
+docker.errors.DockerException: Error while fetching server API version:
+  ('Connection aborted.', FileNotFoundError(2, 'No such file or directory'))
+```
+
+**Cause:** The system uses Podman (not Docker Engine). Podman's rootless socket is inactive by default.
+
+**Fix:**
+
+```bash
+systemctl --user start podman.socket
+systemctl --user enable podman.socket
+export DOCKER_HOST=unix:///run/user/$(id -u)/podman/podman.sock
+```
+
+Add the `export` to `~/.bashrc` to make it permanent.
+
+---
+
+### Issue: `short-name did not resolve to an alias`
+
+**Symptoms:**
+
+```text
+Error: creating build container: short-name "nginx:alpine" did not resolve to an alias
+and no unqualified-search registries are defined
+```
+
+**Cause:** Podman rootless mode does not fall back to Docker Hub for unqualified image names.
+
+**Fix:** All `FROM` directives in `Dockerfile` and `dashboard/Dockerfile` must use fully-qualified names:
+
+```dockerfile
+FROM docker.io/node:22-slim
+FROM docker.io/nginx:alpine
+```
+
+---
+
+### Issue: Healthcheck always `unhealthy` on Node 22 + Podman
+
+**Symptoms:** Container starts successfully but stays `unhealthy`; logs show:
+
+```text
+SyntaxError: Unexpected end of input
+at evalTypeScript (node:internal/process/execution:256:22)
+```
+
+**Cause:** Node 22 routes `node -e` through its TypeScript evaluator which rejects arrow-function
+syntax. Podman also splits quoted shell commands on whitespace, truncating the `-e` argument.
+
+**Fix:** Use `curl` for the healthcheck instead of `node -e`:
+
+```dockerfile
+HEALTHCHECK --interval=30s --timeout=10s --start-period=30s --retries=3 \
+    CMD curl -f http://localhost:2785/api/health || exit 1
+```
+
+```yaml
+# docker-compose.dev.yml
+healthcheck:
+  test: ['CMD', 'curl', '-f', 'http://localhost:2785/api/health']
+```
+
+Ensure `curl` is installed in the production stage:
+
+```dockerfile
+RUN apt-get install -y ... curl ...
+```
+
+---
+
+## 12.3 Connection Issues
 
 ### Issue: Container Won't Start
 

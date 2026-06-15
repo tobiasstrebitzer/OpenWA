@@ -23,6 +23,23 @@ import type {
 } from './dto/ws-messages.dto';
 import { SUBSCRIBABLE_EVENTS, buildRoomName } from './dto/ws-messages.dto';
 
+/**
+ * Whether an API key may subscribe to a session's WebSocket event rooms.
+ * An unrestricted key (no `allowedSessions`) may subscribe to anything, including
+ * the `*` wildcard. A key scoped to specific sessions may NOT subscribe to `*`
+ * (which would receive every session's events) nor to a session outside its
+ * allowlist — preventing cross-tenant event leakage (#221).
+ */
+export function isSessionSubscriptionAllowed(allowedSessions: string[] | null | undefined, sessionId: string): boolean {
+  if (!allowedSessions || allowedSessions.length === 0) {
+    return true;
+  }
+  if (sessionId === '*') {
+    return false;
+  }
+  return allowedSessions.includes(sessionId);
+}
+
 @WebSocketGateway({
   cors: {
     origin: '*', // In production, restrict this
@@ -101,6 +118,14 @@ export class EventsGateway implements OnGatewayInit, OnGatewayConnection, OnGate
     // Validate sessionId
     if (!sessionId || typeof sessionId !== 'string') {
       return this.createError('INVALID_SESSION', 'sessionId is required', requestId);
+    }
+
+    // Enforce per-key session scope: a key restricted to specific sessions must not
+    // subscribe to '*' or to a session outside its allowlist (prevents cross-tenant
+    // event leakage — #221).
+    const subscriberKey = (client.data as { apiKey?: { allowedSessions?: string[] | null } }).apiKey;
+    if (!isSessionSubscriptionAllowed(subscriberKey?.allowedSessions, sessionId)) {
+      return this.createError('FORBIDDEN_SESSION', 'API key is not authorized for this session', requestId);
     }
 
     // Validate events
@@ -234,6 +259,20 @@ export class EventsGateway implements OnGatewayInit, OnGatewayConnection, OnGate
    */
   emitMessageAck(sessionId: string, data: { messageId: string; ack: number; ackName: string }) {
     this.emitToRooms(sessionId, 'message.ack', data);
+  }
+
+  /**
+   * Emit message revoked ("deleted for everyone") notification
+   */
+  emitMessageRevoked(sessionId: string, message: Record<string, unknown>) {
+    this.emitToRooms(sessionId, 'message.revoked', message);
+  }
+
+  /**
+   * Emit message reaction notification
+   */
+  emitMessageReaction(sessionId: string, data: Record<string, unknown>) {
+    this.emitToRooms(sessionId, 'message.reaction', data);
   }
 
   /**

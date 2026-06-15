@@ -5,7 +5,151 @@ All notable changes to this project will be documented in this file.
 The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.0.0/),
 and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
 
-## [Unreleased]
+## [0.2.0] - 2026-06-15
+
+A major feature- and security-focused release. Adds six dashboard languages and a
+real-time Chats view, completes the outgoing-message and delivery-state webhook
+story, introduces message templates and live chat history, hardens the API surface,
+session lifecycle, and container runtime, and upgrades the WhatsApp engine. See
+**Upgrade notes** for the behavior changes.
+
+### Added
+
+- **Dashboard / Chats:** A new real-time Chats view — browse a session's
+  conversations, stream incoming and outgoing messages live over WebSocket, send
+  text and media, and mark chats as read. Thanks @akbarxleqi (#152).
+- **Dashboard / i18n:** Six new languages on a single canonical language picker —
+  Simplified Chinese, Traditional Chinese, Arabic (full RTL), Telugu, French, and
+  Italian — alongside the existing English and Hebrew. The picker now also appears
+  on the Login screen and resolves `zh-Hant/HK/MO/TW` regional variants. Thanks
+  @jr-everstar (#150), @7odaifa-ab (#145), @abhinayguduri (#149), and
+  @albanobattistella (#224).
+- **Messages:** Server-side **message templates** with `{{variable}}` substitution —
+  full CRUD under `/sessions/:id/templates` plus a
+  `POST /sessions/:id/messages/send-template` endpoint that renders and sends.
+  Text templates only; interactive buttons/list/HSM are not supported on the
+  whatsapp-web.js engine. Thanks @esakarya (#69).
+- **Messages:** `GET /sessions/:id/messages/:chatId/history` reads chat history live
+  from WhatsApp (bypassing the local DB), with optional base64 media; `limit` is
+  clamped to 1–100. Thanks @jgalea (#96, closes #162).
+- **Groups:** Group payloads now expose `linkedParentJID` — the JID of the parent
+  community a sub-group belongs to. Thanks @ferhatte10 (#201).
+- **Webhooks:** `message.sent` now fires for **every** outgoing message — including
+  messages composed on a linked phone (via the whatsapp-web.js `message_create`
+  event), not just messages sent through the API. (closes #93, #168, #195)
+- **Webhooks / Sessions:** Stored message status now reflects real delivery state
+  from acks — `delivered`, `read`, and `failed` — advancing monotonically (a late
+  or out-of-order ack can never downgrade a higher status). A send that never
+  receives a delivery ack stays `sent`, so it is visibly "not delivered" instead of
+  falsely "sent". A new `message.failed` webhook is emitted on an error ack so
+  consumers can detect non-delivery without polling. Independently identified and
+  prototyped by @aminebalti55 (#225). (closes #155, #199, #220)
+- **Webhooks:** Opt-in outbound SSRF protection — set `WEBHOOK_SSRF_PROTECT=true` to
+  refuse webhook URLs that resolve to loopback, private, link-local, CGNAT, or
+  cloud-metadata addresses (default off). (#221)
+- **API:** `BODY_SIZE_LIMIT` caps request body size (default 25 MB, sized for
+  base64 media sends). `ENABLE_SWAGGER` gates the `/api/docs` UI (default on; set
+  `false` to disable it on exposed deployments). (#221, #67)
+- **Webhooks:** `message.received` payloads now include the group sender's identity
+  — `author` (the participant WID) and `contact` `{ name, pushName }`. Additive and
+  backward compatible. (#223, closes #146)
+- **Sessions:** Opt-in auto-start of previously authenticated sessions on boot via
+  `AUTO_START_SESSIONS=true` (default off); sessions start sequentially to bound
+  Puppeteer memory and one failure does not block the others. Thanks @mayko7d
+  (#135, closes #218).
+- **Sessions:** `PUPPETEER_EXECUTABLE_PATH` points the engine at a system
+  Chromium/Chrome binary (for Alpine, ARM, or custom base images); unset keeps
+  Puppeteer's bundled Chromium. (#219)
+- **Docs:** Community integrations page documenting the community-maintained
+  ioBroker adapter (with a not-endorsed caveat). (#223, closes #134)
+
+### Changed
+
+- **Engine:** Upgraded `whatsapp-web.js` from 1.26.1-alpha.3 to **1.34.7**
+  (improved LID handling and stability). (#222)
+- **Dashboard:** Responsive layout for small screens and improved dark-mode
+  contrast across pages; the Plugins page no longer truncates the feature list.
+  Thanks @ashiwanikumar (#66).
+- **Auth:** The first-boot admin key is now a cryptographically random `owa_k1_`
+  key in **all** environments by default; the fixed `dev-admin-key` is seeded only
+  when `ALLOW_DEV_API_KEY=true` is explicitly set. (#221)
+- **Auth:** Requests with a valid key but insufficient role now return **403
+  Forbidden** instead of 401. (#221)
+- **Docker / Podman:** Base images are fully qualified (`docker.io/node:22-slim`)
+  and the container healthcheck uses `curl`, so the image builds and runs under
+  Podman as well as Docker; added a Podman compatibility note to the docs. Thanks
+  @3bsalam-1 (#68).
+- **Docs / API:** Interactive messages (`Buttons` / `List`) are documented as
+  unsupported on the whatsapp-web.js engine, and the speculative request-body
+  examples were removed from the API collection. (#223, closes #158)
+
+### Fixed
+
+- **Sessions:** An engine operation attempted while a session is disconnected,
+  reconnecting, or still initializing (for example, refreshing the dashboard after
+  disconnecting the session from the phone) now returns **409 Conflict**
+  ("session not connected") instead of a 500 Internal Server Error. Thanks
+  @VincenzoKoestler for the related report. (#100)
+- **Sessions:** A terminal engine failure (Chromium failed to launch, or WhatsApp
+  rejected the stored credentials) now surfaces as a `failed` status with a
+  human-readable reason on the session and in the dashboard, instead of silently
+  closing the QR modal; `auth_failure` is treated as terminal rather than
+  triggering a reconnect loop. A status race that could revert `qr_ready` back to
+  `initializing` during startup is also fixed. (#219)
+- **Engine:** The built-in engine plugin now honors `SESSION_DATA_PATH` and the
+  configured Puppeteer settings instead of silently falling back to relative-path
+  defaults. (#219)
+- **Infrastructure dashboard:** Saved configuration (`data/.env.generated`) now
+  applies reliably. The save handler wrote several env names the backend never read
+  (`STORAGE_PATH`, `S3_ACCESS_KEY` / `S3_SECRET_KEY`, `ENGINE_HEADLESS` /
+  `ENGINE_SESSION_PATH` / `ENGINE_BROWSER_ARGS`), so those settings silently reverted
+  to defaults on restart; they now match what `configuration.ts` reads. Saving also
+  merges into the existing file instead of rewriting it from scratch, so a partial
+  save no longer blanks other keys or stored secrets, and the form hydrates from a
+  new `GET /infra/config` endpoint. Thanks @VincenzoKoestler (#226).
+
+### Security
+
+- **CORS:** A wildcard (`*`) origin is now **refused in production** (cross-origin
+  requests are blocked), and CORS credentials are only enabled with an explicit
+  origin allowlist. (#221)
+- **WebSocket:** A session-scoped API key can no longer subscribe to `*` or to
+  sessions outside its `allowedSessions` allowlist, preventing cross-tenant event
+  leakage. (#221)
+- **Authorization:** Plugin enable/disable/config and the infrastructure read
+  endpoints (`/infra/status`, `/infra/config`, `/engines`, `/engines/current`,
+  `/storage/files/count`) now require an **ADMIN** key. (#221, #226)
+- **Docker:** The container reaches the Docker API through a least-privilege
+  `docker-socket-proxy` over TCP (`DOCKER_HOST`) instead of mounting the socket
+  directly, and the Node process runs as a non-root `openwa` user via a `gosu`
+  privilege-dropping entrypoint (`dumb-init` stays PID 1 for clean signal handling).
+  Thanks @A831ARD0 (#227, #228; supersedes #129).
+- **Health:** `/api/health` is excluded from rate limiting so liveness probes do
+  not exhaust the limiter. (#221)
+
+### Dependencies
+
+- **CI:** Upgraded `softprops/action-gh-release` v2→v3 and
+  `docker/build-push-action` v6→v7 (both move the GitHub Actions runtime to
+  Node 24). (#169, #170)
+
+### Upgrade notes
+
+- **CORS in production:** if you serve the dashboard on a different origin than the
+  API and relied on the default `CORS_ORIGINS=*`, set `CORS_ORIGINS` to the explicit
+  dashboard origin(s) — a wildcard is now refused in production.
+- **Infrastructure reads are ADMIN-only:** `/api/infra/status`, `/infra/config`,
+  `/engines`, `/engines/current`, and `/storage/files/count` now require an ADMIN key.
+- **Role-denied requests return 403** (was 401) — update clients that branch on the
+  status code.
+- **Not-ready engine ops return 409** (was 500) — clients calling group/chat/send
+  endpoints while a session is not connected now receive `409 SESSION_NOT_READY`.
+- **First-boot key:** non-production no longer seeds `dev-admin-key` by default (a
+  random key is generated and printed in the startup banner / written to
+  `data/.api-key`). Set `ALLOW_DEV_API_KEY=true` to restore the fixed local key.
+- **Docker:** the bundled Compose now runs a `docker-proxy` sibling and the API
+  talks to it via `DOCKER_HOST`, and the container runs as non-root; review the new
+  Compose if you mounted the Docker socket directly or customized orchestration.
 
 ## [0.1.8] - 2026-06-13
 

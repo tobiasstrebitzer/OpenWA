@@ -26,10 +26,15 @@ import {
   Product,
   ProductQueryOptions,
   PaginatedProducts,
+  ChatSummary,
+  RevokedMessage,
+  ReactionEvent,
 } from '../interfaces/whatsapp-engine.interface';
 import { createLogger } from '../../common/services/logger.service';
+import { EngineNotReadyError } from '../../common/errors/engine-not-ready.error';
 import {
   GroupChat,
+  GroupMetadataRaw,
   MessageWithReactions,
   BusinessClient,
   WwjsChannelData,
@@ -43,12 +48,33 @@ export interface WhatsAppWebJsConfig {
   puppeteer?: {
     headless?: boolean;
     args?: string[];
+    executablePath?: string;
   };
   // Phase 3: Proxy per session
   proxy?: {
     url: string;
     type: 'http' | 'https' | 'socks4' | 'socks5';
   };
+}
+
+/**
+ * Extracts the JID of the parent community a group is linked to, if any.
+ * The field name has varied across whatsapp-web.js/WA Web versions, so
+ * known candidates are checked in order.
+ */
+export function extractLinkedParentJID(groupMetadata?: GroupMetadataRaw): string | null {
+  const candidate =
+    groupMetadata?.parentGroup ?? groupMetadata?.linkedParentGroup ?? groupMetadata?.linkedParent ?? null;
+
+  if (!candidate) {
+    return null;
+  }
+
+  if (typeof candidate === 'string') {
+    return candidate;
+  }
+
+  return candidate._serialized ?? null;
 }
 
 export class WhatsAppWebJsAdapter extends EventEmitter implements IWhatsAppEngine {
@@ -97,6 +123,9 @@ export class WhatsAppWebJsAdapter extends EventEmitter implements IWhatsAppEngin
         puppeteer: {
           headless: this.config.puppeteer?.headless ?? true,
           args: puppeteerArgs,
+          // Only override the executable when explicitly configured; otherwise let
+          // whatsapp-web.js fall back to Puppeteer's bundled Chromium.
+          ...(this.config.puppeteer?.executablePath ? { executablePath: this.config.puppeteer.executablePath } : {}),
         },
       });
 
@@ -104,6 +133,8 @@ export class WhatsAppWebJsAdapter extends EventEmitter implements IWhatsAppEngin
       await this.client.initialize();
     } catch (error) {
       this.setStatus(EngineStatus.FAILED);
+      const reason = error instanceof Error ? error.message : String(error);
+      this.callbacks.onError?.(reason);
       throw error;
     }
   }
@@ -206,8 +237,58 @@ export class WhatsAppWebJsAdapter extends EventEmitter implements IWhatsAppEngin
       }
     });
 
+    this.client.on('message_create', msg => {
+      // `message_create` fires for every message the account creates — including ones composed on a
+      // linked phone, which the `message` event above never delivers. Incoming messages are already
+      // handled there, so forward only the account's own outgoing (`fromMe`) messages; this is the
+      // single source for `message.sent` (covers API sends and phone-composed self-messages alike).
+      if (!msg.fromMe) {
+        return;
+      }
+
+      try {
+        this.callbacks.onMessageCreate?.(buildIncomingMessageBase(msg));
+      } catch (error) {
+        this.logger.error('Error processing outgoing message', String(error));
+      }
+    });
+
     this.client.on('message_ack', (msg, ack) => {
       this.callbacks.onMessageAck?.(msg.id._serialized, ack);
+    });
+
+    this.client.on('message_revoke_everyone', after => {
+      try {
+        const selfWid = this.client?.info?.wid?._serialized;
+        // Emit structured data only; the engine layer never produces a localized
+        // display string. The dashboard renders the localized "message deleted" text.
+        const payload: RevokedMessage = {
+          id: after.id._serialized,
+          chatId: after.from === selfWid ? after.to : after.from,
+          from: after.from,
+          to: after.to,
+          type: 'revoked',
+          body: '',
+          timestamp: after.timestamp,
+        };
+        this.callbacks.onMessageRevoked?.(payload);
+      } catch (error) {
+        this.logger.error('Error processing message_revoke_everyone', String(error));
+      }
+    });
+
+    this.client.on('message_reaction', reaction => {
+      try {
+        const event: ReactionEvent = {
+          messageId: reaction.msgId._serialized,
+          chatId: reaction.id.remote,
+          reaction: reaction.reaction,
+          senderId: reaction.senderId,
+        };
+        this.callbacks.onMessageReaction?.(event);
+      } catch (error) {
+        this.logger.error('Error processing message_reaction', String(error));
+      }
     });
 
     this.client.on('disconnected', reason => {
@@ -215,9 +296,12 @@ export class WhatsAppWebJsAdapter extends EventEmitter implements IWhatsAppEngin
       this.callbacks.onDisconnected?.(reason);
     });
 
-    this.client.on('auth_failure', () => {
+    this.client.on('auth_failure', (message?: string) => {
       this.setStatus(EngineStatus.FAILED);
-      this.callbacks.onDisconnected?.('Authentication failed');
+      // Authentication failure is terminal: the stored credentials are invalid and
+      // reconnecting will not help — the operator must re-scan the QR code. Route it
+      // through onError (FAILED, no reconnect) rather than onDisconnected (reconnect).
+      this.callbacks.onError?.(message ? `Authentication failed: ${message}` : 'Authentication failed');
     });
   }
 
@@ -383,6 +467,11 @@ export class WhatsAppWebJsAdapter extends EventEmitter implements IWhatsAppEngin
     // Filter only group chats
     const groups = chats.filter(chat => chat.isGroup);
 
+    // List path: read linkedParentJID synchronously from whatever metadata getChats()
+    // already loaded. We deliberately do NOT fall back to getChatById per group here —
+    // that would be an N+1 round-trip across every group on every list call. Groups
+    // whose metadata isn't loaded report null; the single-group endpoint (getGroupInfo,
+    // which loads full metadata via getChatById) is the authoritative source.
     return groups.map(g => {
       const groupChat = g as unknown as GroupChat;
       return {
@@ -392,6 +481,7 @@ export class WhatsAppWebJsAdapter extends EventEmitter implements IWhatsAppEngin
         isAdmin: groupChat.participants?.some(
           p => p.isAdmin && p.id._serialized === this.client?.info?.wid?._serialized,
         ),
+        linkedParentJID: extractLinkedParentJID(groupChat.groupMetadata),
       };
     });
   }
@@ -521,6 +611,7 @@ export class WhatsAppWebJsAdapter extends EventEmitter implements IWhatsAppEngin
         participants,
         isReadOnly: Boolean(groupChat.isReadOnly),
         isAnnounce: Boolean(groupChat.isAnnounce),
+        linkedParentJID: extractLinkedParentJID(groupChat.groupMetadata),
       };
     } catch (error) {
       this.logger.warn(`Failed to get group: ${groupId}`, String(error));
@@ -792,6 +883,38 @@ export class WhatsAppWebJsAdapter extends EventEmitter implements IWhatsAppEngin
 
   // ========== Gap Quick Wins Implementation ==========
 
+  async getChatHistory(chatId: string, limit: number = 50, includeMedia: boolean = false): Promise<IncomingMessage[]> {
+    this.ensureReady();
+    const chat = await this.client!.getChatById(chatId);
+    const messages = await chat.fetchMessages({ limit });
+    const results: IncomingMessage[] = [];
+    for (const msg of messages) {
+      // Reuse the shared mapper so history messages carry the same author/contact
+      // enrichment as live incoming messages (#223). The mapper defaults chatId to
+      // msg.from, which is wrong here (history includes fromMe messages whose `from`
+      // is our own number), so override it to the requested chat and recompute isGroup.
+      const out = buildIncomingMessageBase(msg);
+      out.chatId = chatId;
+      out.isGroup = chatId.endsWith('@g.us');
+      if (includeMedia && msg.hasMedia) {
+        try {
+          const media = await msg.downloadMedia();
+          if (media) {
+            out.media = {
+              mimetype: media.mimetype,
+              filename: media.filename || undefined,
+              data: media.data,
+            };
+          }
+        } catch (error) {
+          this.logger.warn(`Failed to download media for ${msg.id._serialized}: ${String(error)}`);
+        }
+      }
+      results.push(out);
+    }
+    return results;
+  }
+
   // Delete Message
   async deleteMessage(chatId: string, messageId: string, forEveryone: boolean = true): Promise<void> {
     this.ensureReady();
@@ -933,9 +1056,38 @@ export class WhatsAppWebJsAdapter extends EventEmitter implements IWhatsAppEngin
 
   /* eslint-enable @typescript-eslint/require-await, @typescript-eslint/no-unused-vars */
 
+  async getChats(): Promise<ChatSummary[]> {
+    this.ensureReady();
+    const chats = await this.client!.getChats();
+    // Map the raw whatsapp-web.js chat objects to the library-agnostic ChatSummary
+    // shape so that no library types leak past the engine boundary.
+    return chats.map(chat => ({
+      id: chat.id._serialized,
+      name: chat.name,
+      isGroup: chat.isGroup,
+      unreadCount: chat.unreadCount,
+      timestamp: chat.timestamp,
+      lastMessage: chat.lastMessage?.body || undefined,
+    }));
+  }
+
+  async sendSeen(chatId: string): Promise<boolean> {
+    this.ensureReady();
+    try {
+      const chat = await this.client!.getChatById(chatId);
+      return await chat.sendSeen();
+    } catch (error) {
+      this.logger.error(`Error marking chat ${chatId} as read`, String(error));
+      return false;
+    }
+  }
+
   private ensureReady(): void {
     if (this.status !== EngineStatus.READY || !this.client) {
-      throw new Error('WhatsApp client is not ready');
+      // Typed so the global filter returns 409 Conflict ("session not connected")
+      // instead of a 500 when an engine op is attempted while the session is
+      // disconnected / reconnecting / still initializing (#100).
+      throw new EngineNotReadyError();
     }
   }
 }

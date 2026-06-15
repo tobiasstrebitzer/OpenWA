@@ -37,4 +37,16 @@ describe('buildIncomingMessageBase', () => {
     expect(r.author).toBe('789@c.us');
     expect(r.contact).toBeUndefined();
   });
+
+  it('uses `to` as the chat for an outgoing (fromMe) message, not the account JID in `from`', () => {
+    const r = buildIncomingMessageBase({ ...base, fromMe: true, from: 'me@c.us', to: 'peer@c.us' });
+    expect(r.chatId).toBe('peer@c.us');
+    expect(r.isGroup).toBe(false);
+  });
+
+  it('flags an outgoing group send (fromMe) as a group via `to`', () => {
+    const r = buildIncomingMessageBase({ ...base, fromMe: true, from: 'me@c.us', to: 'group-1@g.us' });
+    expect(r.chatId).toBe('group-1@g.us');
+    expect(r.isGroup).toBe(true);
+  });
 });

@@ -41,6 +41,9 @@ export function generateIdempotencyKey(event: string, data: Record<string, unkno
       // Message ID + ack status together are unique
       return `ack_${toStr(data.id ?? data.messageId)}_${toStr(data.ack, '0')}`;
 
+    case 'message.failed':
+      return `failed_${toStr(data.id ?? data.messageId)}_${toStr(data.ack, '0')}`;
+
     case 'message.revoked':
       return `rev_${toStr(data.id ?? data.messageId)}`;
 
