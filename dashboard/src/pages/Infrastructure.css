@@ -567,3 +567,57 @@
     justify-content: center;
   }
 }
+
+@media (max-width: 768px) {
+  .infrastructure-page {
+    padding: 0.75rem;
+  }
+
+  .infra-card {
+    padding: 1rem;
+  }
+
+  .form-row .form-group.small {
+    max-width: none;
+  }
+
+  .form-group input,
+  .form-group select {
+    font-size: 0.875rem;
+    padding: 0.625rem 0.875rem;
+  }
+
+  .migration-item {
+    grid-template-columns: 24px 1fr;
+    gap: 0.5rem;
+  }
+
+  .migration-date {
+    grid-column: 2;
+  }
+
+  .migration-actions {
+    flex-direction: column;
+  }
+
+  .migration-actions button {
+    justify-content: center;
+  }
+
+  .stat-values {
+    gap: 1rem;
+  }
+
+  .stat-item .value {
+    font-size: 1rem;
+  }
+
+  .page-footer {
+    justify-content: stretch;
+  }
+
+  .page-footer button {
+    width: 100%;
+    justify-content: center;
+  }
+}
