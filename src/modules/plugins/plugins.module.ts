@@ -1,10 +1,10 @@
 import { Module } from '@nestjs/common';
-import { PluginsController } from './plugins.controller';
+import { PluginsActions } from './plugins.actions';
 import { PluginsService } from './plugins.service';
+import { ApiKeyGuard } from '../auth/guards/api-key.guard';
 
 @Module({
-  controllers: [PluginsController],
-  providers: [PluginsService],
+  providers: [PluginsActions, ApiKeyGuard, PluginsService],
   exports: [PluginsService],
 })
 export class PluginsApiModule {}

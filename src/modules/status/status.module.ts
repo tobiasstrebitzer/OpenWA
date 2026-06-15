@@ -1,12 +1,12 @@
 import { Module } from '@nestjs/common';
-import { StatusController } from './status.controller';
+import { StatusActions } from './status.actions';
 import { StatusService } from './status.service';
+import { ApiKeyGuard } from '../auth/guards/api-key.guard';
 import { SessionModule } from '../session/session.module';
 
 @Module({
   imports: [SessionModule],
-  controllers: [StatusController],
-  providers: [StatusService],
+  providers: [StatusActions, ApiKeyGuard, StatusService],
   exports: [StatusService],
 })
 export class StatusModule {}

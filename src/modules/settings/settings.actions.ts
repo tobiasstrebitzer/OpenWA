@@ -1,6 +1,8 @@
-import { Controller, Get, Put, Body } from '@nestjs/common';
-import { ApiTags, ApiOperation, ApiResponse } from '@nestjs/swagger';
+import { Injectable, UseGuards } from '@nestjs/common';
 import { ConfigService } from '@nestjs/config';
+import { Action, Actions } from '@silkweave/nestjs';
+import { z } from 'zod/v4';
+import { ApiKeyGuard } from '../auth/guards/api-key.guard';
 import { RequireRole } from '../auth/decorators/auth.decorators';
 import { ApiKeyRole } from '../auth/entities/api-key.entity';
 
@@ -23,9 +25,48 @@ interface Settings {
   };
 }
 
-@ApiTags('settings')
-@Controller('settings')
-export class SettingsController {
+const GeneralInput = z
+  .object({
+    apiBaseUrl: z.string(),
+    sessionTimeout: z.number(),
+    autoReconnect: z.boolean(),
+    debugMode: z.boolean(),
+  })
+  .partial();
+
+const ApiInput = z
+  .object({
+    rateLimit: z.number(),
+    rateLimitWindow: z.number(),
+    enableDocs: z.boolean(),
+  })
+  .partial();
+
+const NotificationsInput = z
+  .object({
+    emailEnabled: z.boolean(),
+    notificationEmail: z.string(),
+    webhookAlerts: z.boolean(),
+  })
+  .partial();
+
+const UpdateInput = z
+  .object({
+    general: GeneralInput.optional(),
+    api: ApiInput.optional(),
+    notifications: NotificationsInput.optional(),
+  })
+  .describe('Partial settings to merge into the current settings');
+
+/**
+ * Settings actions — REST routes restored to match the original NestJS controller:
+ *   GET  /api/settings  -> get()    (read current settings)
+ *   PUT  /api/settings  -> update()  (ADMIN, merge partial settings)
+ */
+@Injectable()
+@Actions('settings')
+@UseGuards(ApiKeyGuard)
+export class SettingsActions {
   private settings: Settings;
 
   constructor(private readonly configService: ConfigService) {
@@ -52,18 +93,25 @@ export class SettingsController {
     };
   }
 
-  @Get()
-  @ApiOperation({ summary: 'Get application settings' })
-  @ApiResponse({ status: 200, description: 'Current settings' })
+  @Action({
+    method: 'GET',
+    path: 'settings',
+    description: 'Get application settings',
+    input: z.object({}),
+    kind: 'query',
+  })
   get(): Settings {
     return this.settings;
   }
 
-  @Put()
   @RequireRole(ApiKeyRole.ADMIN)
-  @ApiOperation({ summary: 'Update application settings' })
-  @ApiResponse({ status: 200, description: 'Settings updated' })
-  update(@Body() newSettings: Partial<Settings>): Settings {
+  @Action({
+    method: 'PUT',
+    path: 'settings',
+    description: 'Update application settings',
+    input: UpdateInput,
+  })
+  update(newSettings: z.infer<typeof UpdateInput>): Settings {
     if (newSettings.general) {
       this.settings.general = {
         ...this.settings.general,

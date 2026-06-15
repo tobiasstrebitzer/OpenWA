@@ -1,4 +1,5 @@
 import { Module, DynamicModule, Type } from '@nestjs/common';
+import { mcp, rest, SilkweaveModule } from '@silkweave/nestjs';
 import { ConfigModule, ConfigService } from '@nestjs/config';
 import { TypeOrmModule } from '@nestjs/typeorm';
 import { ThrottlerModule } from '@nestjs/throttler';
@@ -169,6 +170,25 @@ if (process.env.QUEUE_ENABLED === 'true') {
     StatusModule, // Phase 3: Status/Stories API
     CatalogModule, // Phase 3: Catalog API (WhatsApp Business)
     PluginsApiModule, // Phase 5: Plugins API
+
+    // Silkweave: exposes @Action-decorated providers (currently HealthActions)
+    // over REST and MCP, mounted directly on the Nest HTTP server. Incremental
+    // migration target away from classic controllers + DTOs.
+    SilkweaveModule.forRoot({
+      silkweave: {
+        name: 'openwa',
+        description: 'OpenWA — Open Source WhatsApp API Gateway',
+        version: '0.1.8',
+      },
+      adapters: [
+        // basePath '/api' matches the controllers' global prefix; these routes
+        // register on the raw HTTP adapter, so the global prefix is not applied
+        // automatically.
+        rest({ basePath: '/api' }),
+        // MCP Streamable HTTP transport at /mcp.
+        mcp({ basePath: '/mcp' }),
+      ],
+    }),
   ],
 })
 export class AppModule {}

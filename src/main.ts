@@ -1,6 +1,7 @@
 import { NestFactory } from '@nestjs/core';
 import { ValidationPipe } from '@nestjs/common';
 import { SwaggerModule } from '@nestjs/swagger';
+import { addSilkweaveActions } from '@silkweave/nestjs';
 import helmet from 'helmet';
 import { AppModule } from './app.module';
 import { ShutdownService } from './common/services/shutdown.service';
@@ -161,6 +162,10 @@ async function bootstrap() {
   if (isSwaggerEnabled(process.env.ENABLE_SWAGGER)) {
     const config = createSwaggerConfig();
     const document = SwaggerModule.createDocument(app, config);
+    // Merge Silkweave action routes into the OpenAPI doc — they register on the raw
+    // HTTP adapter and aren't scanned by @nestjs/swagger, so without this they'd be
+    // missing from /api/docs.
+    addSilkweaveActions(app, document, { basePath: '/api' });
     SwaggerModule.setup('api/docs', app, document);
   }
 

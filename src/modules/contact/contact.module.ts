@@ -1,9 +1,10 @@
 import { Module } from '@nestjs/common';
-import { ContactController } from './contact.controller';
+import { ContactActions } from './contact.actions';
+import { ApiKeyGuard } from '../auth/guards/api-key.guard';
 import { SessionModule } from '../session/session.module';
 
 @Module({
   imports: [SessionModule],
-  controllers: [ContactController],
+  providers: [ContactActions, ApiKeyGuard],
 })
 export class ContactModule {}

@@ -1,12 +1,12 @@
 import { Module } from '@nestjs/common';
-import { CatalogController } from './catalog.controller';
+import { CatalogActions } from './catalog.actions';
 import { CatalogService } from './catalog.service';
+import { ApiKeyGuard } from '../auth/guards/api-key.guard';
 import { SessionModule } from '../session/session.module';
 
 @Module({
   imports: [SessionModule],
-  controllers: [CatalogController],
-  providers: [CatalogService],
+  providers: [CatalogActions, ApiKeyGuard, CatalogService],
   exports: [CatalogService],
 })
 export class CatalogModule {}

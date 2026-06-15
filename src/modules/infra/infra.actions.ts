@@ -1,8 +1,10 @@
-import { Controller, Get, Put, Post, Body, BadRequestException } from '@nestjs/common';
-import { ApiTags, ApiOperation, ApiResponse, ApiBody } from '@nestjs/swagger';
+import { Injectable, UseGuards, BadRequestException } from '@nestjs/common';
+import { Action, Actions } from '@silkweave/nestjs';
+import { z } from 'zod/v4';
 import { ConfigService } from '@nestjs/config';
 import { DataSource } from 'typeorm';
 import { InjectDataSource } from '@nestjs/typeorm';
+import { ApiKeyGuard } from '../auth/guards/api-key.guard';
 import { Public, RequireRole } from '../auth/decorators/auth.decorators';
 import { ApiKeyRole } from '../auth/entities/api-key.entity';
 import { isPathWithin } from '../../common/utils/path-safety';
@@ -26,46 +28,6 @@ interface InfraStatus {
   };
   storage: { type: 'local' | 's3'; path?: string; bucket?: string };
   engine: { type: string; headless: boolean; sessionDataPath: string; browserArgs: string };
-}
-
-interface SaveConfigDto {
-  database?: {
-    type: 'sqlite' | 'postgres';
-    builtIn?: boolean;
-    host?: string;
-    port?: string;
-    username?: string;
-    password?: string;
-    database?: string;
-    poolSize?: number;
-    sslEnabled?: boolean;
-    sslRejectUnauthorized?: boolean;
-  };
-  redis?: {
-    enabled?: boolean;
-    builtIn?: boolean;
-    host?: string;
-    port?: string;
-    password?: string;
-  };
-  queue?: {
-    enabled?: boolean;
-  };
-  storage?: {
-    type: 'local' | 's3';
-    builtIn?: boolean;
-    localPath?: string;
-    s3Bucket?: string;
-    s3Region?: string;
-    s3AccessKey?: string;
-    s3SecretKey?: string;
-    s3Endpoint?: string;
-  };
-  engine?: {
-    headless?: boolean;
-    sessionDataPath?: string;
-    browserArgs?: string;
-  };
 }
 
 // Database migration types for export/import
@@ -164,10 +126,87 @@ interface SavedConfigResponse {
   engine: { headless: boolean; sessionDataPath: string; browserArgs: string };
 }
 
-@ApiTags('infrastructure')
-@Controller('infra')
-export class InfraController {
-  private readonly logger = createLogger('InfraController');
+// PUT /infra/config body (SaveConfigDto)
+const SaveConfigInput = z.object({
+  database: z
+    .object({
+      type: z.enum(['sqlite', 'postgres']),
+      builtIn: z.boolean().optional(),
+      host: z.string().optional(),
+      port: z.string().optional(),
+      username: z.string().optional(),
+      password: z.string().optional(),
+      database: z.string().optional(),
+      poolSize: z.number().optional(),
+      sslEnabled: z.boolean().optional(),
+      sslRejectUnauthorized: z.boolean().optional(),
+    })
+    .optional(),
+  redis: z
+    .object({
+      enabled: z.boolean().optional(),
+      builtIn: z.boolean().optional(),
+      host: z.string().optional(),
+      port: z.string().optional(),
+      password: z.string().optional(),
+    })
+    .optional(),
+  queue: z
+    .object({
+      enabled: z.boolean().optional(),
+    })
+    .optional(),
+  storage: z
+    .object({
+      type: z.enum(['local', 's3']),
+      builtIn: z.boolean().optional(),
+      localPath: z.string().optional(),
+      s3Bucket: z.string().optional(),
+      s3Region: z.string().optional(),
+      s3AccessKey: z.string().optional(),
+      s3SecretKey: z.string().optional(),
+      s3Endpoint: z.string().optional(),
+    })
+    .optional(),
+  engine: z
+    .object({
+      headless: z.boolean().optional(),
+      sessionDataPath: z.string().optional(),
+      browserArgs: z.string().optional(),
+    })
+    .optional(),
+});
+
+type SaveConfigDto = z.infer<typeof SaveConfigInput>;
+
+const RestartInput = z.object({
+  profiles: z.array(z.string()).optional().describe('Docker profiles to enable'),
+  profilesToRemove: z.array(z.string()).optional().describe('Docker profiles to disable/remove'),
+});
+
+const ImportDataInput = z.object({
+  tables: z
+    .object({
+      // z.any() keeps these representable in JSON Schema (z.custom<T>() is not),
+      // which the MCP transport requires when generating the tool input schema.
+      // Rows are an opaque DB dump re-imported as-is; the body asserts the shape.
+      sessions: z.array(z.any()).optional(),
+      webhooks: z.array(z.any()).optional(),
+      messages: z.array(z.any()).optional(),
+      messageBatches: z.array(z.any()).optional(),
+    })
+    .describe('Exported tables from infra.export-data'),
+});
+
+const ImportStorageInput = z.object({
+  filePath: z.string().describe('Path to a tar.gz file inside the data directory'),
+});
+
+@Injectable()
+@Actions('infra')
+@UseGuards(ApiKeyGuard)
+export class InfraActions {
+  private readonly logger = createLogger('InfraActions');
 
   constructor(
     private readonly configService: ConfigService,
@@ -182,11 +221,15 @@ export class InfraController {
     private readonly shutdownService: ShutdownService,
   ) {}
 
-  @Get('status')
   @RequireRole(ApiKeyRole.ADMIN)
-  @ApiOperation({ summary: 'Get infrastructure status' })
-  @ApiResponse({ status: 200, description: 'Infrastructure status' })
-  async getStatus(): Promise<InfraStatus> {
+  @Action({
+    description: 'Get infrastructure status (database, redis, queue, storage, engine)',
+    input: z.object({}),
+    kind: 'query',
+    method: 'GET',
+    path: 'infra/status',
+  })
+  async status(): Promise<InfraStatus> {
     // Check both database connections
     const mainDbConnected = this.mainDataSource.isInitialized;
     const dataDbConnected = this.dataDataSource.isInitialized;
@@ -223,26 +266,53 @@ export class InfraController {
     };
   }
 
-  @Get('engines')
   @RequireRole(ApiKeyRole.ADMIN)
-  @ApiOperation({ summary: 'Get available WhatsApp engines' })
-  @ApiResponse({ status: 200, description: 'List of available engines' })
-  getEngines(): Array<{ id: string; name: string; enabled: boolean; features: string[] }> {
+  @Action({
+    description: 'Get available WhatsApp engines',
+    input: z.object({}),
+    kind: 'query',
+    method: 'GET',
+    path: 'infra/engines',
+  })
+  engines(): Array<{ id: string; name: string; enabled: boolean; features: string[] }> {
     return this.engineFactory.getAvailableEngines();
   }
 
-  @Get('engines/current')
   @RequireRole(ApiKeyRole.ADMIN)
-  @ApiOperation({ summary: 'Get current active engine' })
-  @ApiResponse({ status: 200, description: 'Current engine info' })
-  getCurrentEngine(): { engineType: string } {
+  @Action({
+    description: 'Get the current active WhatsApp engine',
+    input: z.object({}),
+    kind: 'query',
+    method: 'GET',
+    path: 'infra/engines/current',
+  })
+  enginesCurrent(): { engineType: string } {
     return { engineType: this.engineFactory.getCurrentEngine() };
   }
 
-  @Get('config')
+  @Public()
+  @Action({
+    description: 'Health check endpoint',
+    input: z.object({}),
+    kind: 'query',
+    method: 'GET',
+    path: 'infra/health',
+  })
+  health(): { status: string; timestamp: string } {
+    return {
+      status: 'ok',
+      timestamp: new Date().toISOString(),
+    };
+  }
+
   @RequireRole(ApiKeyRole.ADMIN)
-  @ApiOperation({ summary: 'Read the saved infrastructure configuration for the dashboard form' })
-  @ApiResponse({ status: 200, description: 'Saved configuration (secrets omitted)' })
+  @Action({
+    description: 'Read the saved infrastructure configuration for the dashboard form (secrets omitted)',
+    input: z.object({}),
+    kind: 'query',
+    method: 'GET',
+    path: 'infra/config',
+  })
   getConfig(): SavedConfigResponse {
     const envPath = path.resolve(process.cwd(), 'data', '.env.generated');
     const saved: Record<string, string> = fs.existsSync(envPath) ? dotenv.parse(fs.readFileSync(envPath, 'utf8')) : {};
@@ -288,12 +358,15 @@ export class InfraController {
     };
   }
 
-  @Put('config')
   @RequireRole(ApiKeyRole.ADMIN)
-  @ApiOperation({ summary: 'Save infrastructure configuration to .env file' })
-  @ApiResponse({ status: 200, description: 'Configuration saved' })
-  @ApiBody({ description: 'Configuration to save' })
-  saveConfig(@Body() config: SaveConfigDto): { message: string; saved: boolean; envPath: string; profiles: string[] } {
+  @Action({
+    description: 'Save infrastructure configuration to a generated .env file',
+    input: SaveConfigInput,
+    method: 'PUT',
+    path: 'infra/config',
+  })
+  config(input: SaveConfigDto): { message: string; saved: boolean; envPath: string; profiles: string[] } {
+    const config = input;
     try {
       const profiles: string[] = [];
 
@@ -437,11 +510,15 @@ export class InfraController {
       };
     }
   }
-  @Post('restart')
+
   @RequireRole(ApiKeyRole.ADMIN)
-  @ApiOperation({ summary: 'Request server restart with Docker orchestration' })
-  @ApiResponse({ status: 200, description: 'Server will restart with new profiles' })
-  async requestRestart(@Body() body?: { profiles?: string[]; profilesToRemove?: string[] }): Promise<{
+  @Action({
+    description: 'Request server restart with Docker orchestration',
+    input: RestartInput,
+    method: 'POST',
+    path: 'infra/restart',
+  })
+  async restart(input: z.infer<typeof RestartInput>): Promise<{
     message: string;
     restarting: boolean;
     profiles: string[];
@@ -450,8 +527,8 @@ export class InfraController {
     orchestration?: object;
     removal?: object;
   }> {
-    const profiles = body?.profiles || [];
-    const profilesToRemove = body?.profilesToRemove || [];
+    const profiles = input.profiles || [];
+    const profilesToRemove = input.profilesToRemove || [];
     let orchestrationResult: object | undefined;
     let removalResult: { removed: string[]; errors: string[] } | undefined;
 
@@ -528,21 +605,14 @@ export class InfraController {
     };
   }
 
-  @Get('health')
-  @Public()
-  @ApiOperation({ summary: 'Health check endpoint' })
-  @ApiResponse({ status: 200, description: 'Server is healthy' })
-  healthCheck(): { status: string; timestamp: string } {
-    return {
-      status: 'ok',
-      timestamp: new Date().toISOString(),
-    };
-  }
-
-  @Get('export-data')
   @RequireRole(ApiKeyRole.ADMIN)
-  @ApiOperation({ summary: 'Export all data from Data DB for migration' })
-  @ApiResponse({ status: 200, description: 'Exported data as JSON' })
+  @Action({
+    description: 'Export all data from the Data DB for migration',
+    input: z.object({}),
+    kind: 'query',
+    method: 'GET',
+    path: 'infra/export-data',
+  })
   async exportData(): Promise<{
     exportedAt: string;
     dataDbType: string;
@@ -587,37 +657,20 @@ export class InfraController {
     };
   }
 
-  @Post('import-data')
   @RequireRole(ApiKeyRole.ADMIN)
-  @ApiOperation({ summary: 'Import data to Data DB (replaces existing data)' })
-  @ApiBody({
-    description: 'Exported data from export-data endpoint',
-    schema: {
-      type: 'object',
-      properties: {
-        tables: {
-          type: 'object',
-          properties: {
-            sessions: { type: 'array' },
-            webhooks: { type: 'array' },
-            messages: { type: 'array' },
-            messageBatches: { type: 'array' },
-          },
-        },
-      },
-    },
+  @Action({
+    description: 'Import data to the Data DB (replaces existing data)',
+    input: ImportDataInput,
+    method: 'POST',
+    path: 'infra/import-data',
   })
-  @ApiResponse({ status: 200, description: 'Data imported successfully' })
-  async importData(
-    @Body()
-    data: {
-      tables: Partial<MigrationTables>;
-    },
-  ): Promise<{
+  async importData(input: z.infer<typeof ImportDataInput>): Promise<{
     imported: boolean;
     counts: { sessions: number; webhooks: number; messages: number; messageBatches: number };
     warnings: string[];
   }> {
+    // eslint-disable-next-line @typescript-eslint/no-unnecessary-type-assertion -- narrows the z.any() rows to typed MigrationTables for the insert code below
+    const data = input as { tables: Partial<MigrationTables> };
     const warnings: string[] = [];
     const queryRunner = this.dataDataSource.createQueryRunner();
     await queryRunner.connect();
@@ -636,7 +689,7 @@ export class InfraController {
         for (const session of data.tables.sessions) {
           try {
             await queryRunner.query(
-              `INSERT INTO sessions (id, name, status, phone, "pushName", config, "proxyUrl", "proxyType", "connectedAt", "lastActiveAt", "createdAt", "updatedAt") 
+              `INSERT INTO sessions (id, name, status, phone, "pushName", config, "proxyUrl", "proxyType", "connectedAt", "lastActiveAt", "createdAt", "updatedAt")
                VALUES ($1, $2, $3, $4, $5, $6, $7, $8, $9, $10, $11, $12)`,
               [
                 session.id,
@@ -666,7 +719,7 @@ export class InfraController {
         for (const webhook of data.tables.webhooks) {
           try {
             await queryRunner.query(
-              `INSERT INTO webhooks (id, "sessionId", url, events, secret, headers, active, "retryCount", "lastTriggeredAt", "createdAt", "updatedAt") 
+              `INSERT INTO webhooks (id, "sessionId", url, events, secret, headers, active, "retryCount", "lastTriggeredAt", "createdAt", "updatedAt")
                VALUES ($1, $2, $3, $4, $5, $6, $7, $8, $9, $10, $11)`,
               [
                 webhook.id,
@@ -695,7 +748,7 @@ export class InfraController {
         for (const msg of data.tables.messages) {
           try {
             await queryRunner.query(
-              `INSERT INTO messages (id, "sessionId", "messageId", "chatId", direction, type, content, status, metadata, "createdAt", "updatedAt") 
+              `INSERT INTO messages (id, "sessionId", "messageId", "chatId", direction, type, content, status, metadata, "createdAt", "updatedAt")
                VALUES ($1, $2, $3, $4, $5, $6, $7, $8, $9, $10, $11)`,
               [
                 msg.id,
@@ -724,7 +777,7 @@ export class InfraController {
         for (const batch of data.tables.messageBatches) {
           try {
             await queryRunner.query(
-              `INSERT INTO message_batches (id, "batchId", "sessionId", status, messages, options, progress, results, "currentIndex", "createdAt", "updatedAt", "startedAt", "completedAt") 
+              `INSERT INTO message_batches (id, "batchId", "sessionId", status, messages, options, progress, results, "currentIndex", "createdAt", "updatedAt", "startedAt", "completedAt")
                VALUES ($1, $2, $3, $4, $5, $6, $7, $8, $9, $10, $11, $12, $13)`,
               [
                 batch.id,
@@ -773,11 +826,15 @@ export class InfraController {
   // STORAGE MIGRATION API
   // ============================================================================
 
-  @Get('storage/files/count')
   @RequireRole(ApiKeyRole.ADMIN)
-  @ApiOperation({ summary: 'Get file count in current storage' })
-  @ApiResponse({ status: 200, description: 'File count and size' })
-  async getStorageFileCount(): Promise<{
+  @Action({
+    description: 'Get file count and size in current storage',
+    input: z.object({}),
+    kind: 'query',
+    method: 'GET',
+    path: 'infra/storage/files/count',
+  })
+  async storageFilesCount(): Promise<{
     storageType: string;
     count: number;
     sizeBytes: number;
@@ -792,11 +849,15 @@ export class InfraController {
     };
   }
 
-  @Get('storage/export')
   @RequireRole(ApiKeyRole.ADMIN)
-  @ApiOperation({ summary: 'Export all storage files as tar.gz' })
-  @ApiResponse({ status: 200, description: 'Tar.gz archive stream' })
-  async exportStorage(): Promise<{ message: string; download: string }> {
+  @Action({
+    description: 'Export all storage files as a tar.gz archive (writes to a file under data/, returns its path)',
+    input: z.object({}),
+    kind: 'query',
+    method: 'GET',
+    path: 'infra/storage/export',
+  })
+  async storageExport(): Promise<{ message: string; download: string }> {
     // Note: In production, this would return a StreamableFile
     // For simplicity, we'll save to a temp file and return the path
     const stream = await this.storageService.createExportStream();
@@ -816,15 +877,17 @@ export class InfraController {
     };
   }
 
-  @Post('storage/import')
   @RequireRole(ApiKeyRole.ADMIN)
-  @ApiOperation({ summary: 'Import storage files from tar.gz' })
-  @ApiBody({ description: 'Path to tar.gz file to import' })
-  @ApiResponse({ status: 200, description: 'Import result' })
-  async importStorage(
-    @Body() body: { filePath: string },
+  @Action({
+    description: 'Import storage files from a tar.gz file inside the data directory',
+    input: ImportStorageInput,
+    method: 'POST',
+    path: 'infra/storage/import',
+  })
+  async storageImport(
+    input: z.infer<typeof ImportStorageInput>,
   ): Promise<{ imported: boolean; count: number; storageType: string }> {
-    const { filePath } = body;
+    const { filePath } = input;
 
     // `filePath` is fully caller-controlled. Restrict it to the app's data
     // directory so it cannot point at arbitrary files on the host.
