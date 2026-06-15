@@ -16,7 +16,11 @@ const IdInput = z.object({
 
 const MarkChatReadInput = z.object({
   id: z.string().describe('Session ID'),
-  chatId: z.string().describe('WhatsApp chat ID to mark as read (e.g. 1234567890@c.us or 1234567890-123@g.us)'),
+  // Reject malformed IDs early with a clear 400 instead of a silent no-op at the engine layer.
+  chatId: z
+    .string()
+    .regex(/^[0-9-]+@[cg]\.us$/, 'chatId must be a valid WhatsApp JID (e.g. 1234567890@c.us or 1234567890-123@g.us)')
+    .describe('WhatsApp chat ID to mark as read (e.g. 1234567890@c.us or 1234567890-123@g.us)'),
 });
 
 const CreateInput = z.object({
