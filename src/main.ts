@@ -1,6 +1,7 @@
 import { NestFactory } from '@nestjs/core';
 import { ValidationPipe } from '@nestjs/common';
 import { SwaggerModule } from '@nestjs/swagger';
+import { addSilkweaveActions } from '@silkweave/nestjs';
 import helmet from 'helmet';
 import { AppModule } from './app.module';
 import { ShutdownService } from './common/services/shutdown.service';
@@ -148,6 +149,7 @@ async function bootstrap() {
   const config = createSwaggerConfig();
 
   const document = SwaggerModule.createDocument(app, config);
+  addSilkweaveActions(app, document, { basePath: '/api' });
   SwaggerModule.setup('api/docs', app, document);
 
   // Protect the Bull Board queue UI (/api/admin/queues). It is mounted by
