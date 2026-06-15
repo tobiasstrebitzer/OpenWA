@@ -28,6 +28,7 @@ import {
   PaginatedProducts,
 } from '../interfaces/whatsapp-engine.interface';
 import { createLogger } from '../../common/services/logger.service';
+import { EngineNotReadyError } from '../../common/errors/engine-not-ready.error';
 import {
   GroupChat,
   GroupMetadataRaw,
@@ -1020,7 +1021,10 @@ export class WhatsAppWebJsAdapter extends EventEmitter implements IWhatsAppEngin
 
   private ensureReady(): void {
     if (this.status !== EngineStatus.READY || !this.client) {
-      throw new Error('WhatsApp client is not ready');
+      // Typed so the global filter returns 409 Conflict ("session not connected")
+      // instead of a 500 when an engine op is attempted while the session is
+      // disconnected / reconnecting / still initializing (#100).
+      throw new EngineNotReadyError();
     }
   }
 }
