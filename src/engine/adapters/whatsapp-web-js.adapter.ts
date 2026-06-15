@@ -30,6 +30,7 @@ import {
 import { createLogger } from '../../common/services/logger.service';
 import {
   GroupChat,
+  GroupMetadataRaw,
   MessageWithReactions,
   BusinessClient,
   WwjsChannelData,
@@ -50,6 +51,26 @@ export interface WhatsAppWebJsConfig {
     url: string;
     type: 'http' | 'https' | 'socks4' | 'socks5';
   };
+}
+
+/**
+ * Extracts the JID of the parent community a group is linked to, if any.
+ * The field name has varied across whatsapp-web.js/WA Web versions, so
+ * known candidates are checked in order.
+ */
+export function extractLinkedParentJID(groupMetadata?: GroupMetadataRaw): string | null {
+  const candidate =
+    groupMetadata?.parentGroup ?? groupMetadata?.linkedParentGroup ?? groupMetadata?.linkedParent ?? null;
+
+  if (!candidate) {
+    return null;
+  }
+
+  if (typeof candidate === 'string') {
+    return candidate;
+  }
+
+  return candidate._serialized ?? null;
 }
 
 export class WhatsAppWebJsAdapter extends EventEmitter implements IWhatsAppEngine {
@@ -408,6 +429,11 @@ export class WhatsAppWebJsAdapter extends EventEmitter implements IWhatsAppEngin
     // Filter only group chats
     const groups = chats.filter(chat => chat.isGroup);
 
+    // List path: read linkedParentJID synchronously from whatever metadata getChats()
+    // already loaded. We deliberately do NOT fall back to getChatById per group here —
+    // that would be an N+1 round-trip across every group on every list call. Groups
+    // whose metadata isn't loaded report null; the single-group endpoint (getGroupInfo,
+    // which loads full metadata via getChatById) is the authoritative source.
     return groups.map(g => {
       const groupChat = g as unknown as GroupChat;
       return {
@@ -417,6 +443,7 @@ export class WhatsAppWebJsAdapter extends EventEmitter implements IWhatsAppEngin
         isAdmin: groupChat.participants?.some(
           p => p.isAdmin && p.id._serialized === this.client?.info?.wid?._serialized,
         ),
+        linkedParentJID: extractLinkedParentJID(groupChat.groupMetadata),
       };
     });
   }
@@ -546,6 +573,7 @@ export class WhatsAppWebJsAdapter extends EventEmitter implements IWhatsAppEngin
         participants,
         isReadOnly: Boolean(groupChat.isReadOnly),
         isAnnounce: Boolean(groupChat.isAnnounce),
+        linkedParentJID: extractLinkedParentJID(groupChat.groupMetadata),
       };
     } catch (error) {
       this.logger.warn(`Failed to get group: ${groupId}`, String(error));

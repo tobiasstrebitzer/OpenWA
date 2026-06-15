@@ -630,7 +630,7 @@ export class SessionService implements OnModuleDestroy, OnModuleInit, OnApplicat
     return this.engines.get(id);
   }
 
-  async getGroups(id: string): Promise<{ id: string; name: string }[]> {
+  async getGroups(id: string): Promise<{ id: string; name: string; linkedParentJID?: string | null }[]> {
     await this.findOne(id); // Verify session exists
     const engine = this.engines.get(id);
 
@@ -642,6 +642,7 @@ export class SessionService implements OnModuleDestroy, OnModuleInit, OnApplicat
     return groups.map(g => ({
       id: g.id,
       name: g.name,
+      linkedParentJID: g.linkedParentJID,
     }));
   }
 

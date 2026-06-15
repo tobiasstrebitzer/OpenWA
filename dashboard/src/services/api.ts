@@ -191,7 +191,8 @@ export const sessionApi = {
   stop: (id: string) => request<Session>(`/sessions/${id}/stop`, { method: 'POST' }),
   getQR: (id: string) => request<{ qrCode: string; status: string }>(`/sessions/${id}/qr`),
   getStats: () => request<SessionStats>('/sessions/stats/overview'),
-  getGroups: (id: string) => request<{ id: string; name: string }[]>(`/sessions/${id}/groups`),
+  getGroups: (id: string) =>
+    request<{ id: string; name: string; linkedParentJID?: string | null }[]>(`/sessions/${id}/groups`),
 };
 
 // =============================================================================
