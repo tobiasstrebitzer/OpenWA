@@ -9,6 +9,7 @@ import { Message, MessageDirection, MessageStatus } from './entities/message.ent
 import { HookManager } from '../../core/hooks';
 import { TemplateService } from '../template/template.service';
 import { renderTemplate } from '../../common/utils/template-render';
+import { createLogger } from '../../common/services/logger.service';
 
 export interface GetMessagesOptions {
   chatId?: string;
@@ -18,6 +19,8 @@ export interface GetMessagesOptions {
 
 @Injectable()
 export class MessageService {
+  private readonly logger = createLogger('MessageService');
+
   constructor(
     @InjectRepository(Message, 'data')
     private readonly messageRepository: Repository<Message>,
@@ -113,6 +116,9 @@ export class MessageService {
       chatId: dto.chatId,
       body: dto.caption || '',
       type: 'image',
+      metadata: {
+        media: { mimetype: dto.mimetype, filename: dto.filename, data: dto.base64 || dto.url },
+      },
     });
 
     try {
@@ -144,6 +150,9 @@ export class MessageService {
       chatId: dto.chatId,
       body: dto.caption || '',
       type: 'video',
+      metadata: {
+        media: { mimetype: dto.mimetype, filename: dto.filename, data: dto.base64 || dto.url },
+      },
     });
 
     try {
@@ -174,6 +183,9 @@ export class MessageService {
     const message = await this.saveOutgoingMessage(sessionId, {
       chatId: dto.chatId,
       type: 'audio',
+      metadata: {
+        media: { mimetype: dto.mimetype, filename: dto.filename, data: dto.base64 || dto.url },
+      },
     });
 
     try {
@@ -205,6 +217,9 @@ export class MessageService {
       chatId: dto.chatId,
       body: dto.filename || '',
       type: 'document',
+      metadata: {
+        media: { mimetype: dto.mimetype, filename: dto.filename, data: dto.base64 || dto.url },
+      },
     });
 
     try {
@@ -335,6 +350,9 @@ export class MessageService {
     const message = await this.saveOutgoingMessage(sessionId, {
       chatId: dto.chatId,
       type: 'sticker',
+      metadata: {
+        media: { mimetype: dto.mimetype, filename: dto.filename, data: dto.base64 || dto.url },
+      },
     });
 
     try {
@@ -363,11 +381,25 @@ export class MessageService {
   ): Promise<MessageResponseDto> {
     const engine = this.getEngine(sessionId);
 
+    // Resolve the quoted message body (best-effort) so the dashboard can render the reply preview.
+    let quotedBody = '';
+    try {
+      const quoted = await this.messageRepository.findOne({
+        where: { sessionId, waMessageId: dto.quotedMessageId },
+      });
+      quotedBody = quoted?.body || '';
+    } catch (err) {
+      this.logger.warn(`Failed to resolve quoted message ${dto.quotedMessageId}`, { error: String(err) });
+    }
+
     // Save message as pending BEFORE sending
     const message = await this.saveOutgoingMessage(sessionId, {
       chatId: dto.chatId,
       body: dto.text,
       type: 'text',
+      metadata: {
+        quotedMessage: { id: dto.quotedMessageId, body: quotedBody },
+      },
     });
 
     try {
@@ -448,6 +480,7 @@ export class MessageService {
       type: string;
       timestamp?: number;
       status?: MessageStatus;
+      metadata?: Record<string, unknown>;
     },
   ): Promise<Message> {
     const session = await this.sessionService.findOne(sessionId);
@@ -462,6 +495,7 @@ export class MessageService {
       direction: MessageDirection.OUTGOING,
       timestamp: data.timestamp,
       status: data.status ?? MessageStatus.PENDING,
+      metadata: data.metadata,
     });
     return this.messageRepository.save(message);
   }
@@ -505,6 +539,14 @@ export class MessageService {
   ): Promise<void> {
     const engine = this.getEngine(sessionId);
     await engine.deleteMessage(dto.chatId, dto.messageId, dto.forEveryone ?? true);
+
+    // Flag the stored message as revoked. No localized display string is persisted here;
+    // the dashboard renders the localized "message deleted" text.
+    try {
+      await this.messageRepository.update({ sessionId, waMessageId: dto.messageId }, { body: '', type: 'revoked' });
+    } catch (err) {
+      this.logger.warn(`Failed to flag deleted message ${dto.messageId} as revoked`, { error: String(err) });
+    }
   }
 
   private getEngine(sessionId: string) {

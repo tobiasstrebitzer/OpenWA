@@ -38,7 +38,7 @@ export function Sessions() {
     }
   }, [t]);
 
-  useWebSocket({
+  const { isConnected, subscribe } = useWebSocket({
     onSessionStatus: useCallback(
       (event: { sessionId: string; status: string }) => {
         setSessions(prev =>
@@ -57,6 +57,14 @@ export function Sessions() {
       [toast, t, fetchSessions],
     ),
   });
+
+  // The gateway delivers events only to subscribed rooms; join the wildcard
+  // session.status room so status changes for every session are received live.
+  useEffect(() => {
+    if (isConnected) {
+      subscribe('*', ['session.status', 'session.qr']);
+    }
+  }, [isConnected, subscribe]);
 
   useEffect(() => {
     fetchSessions();

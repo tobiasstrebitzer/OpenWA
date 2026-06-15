@@ -42,6 +42,8 @@ describe('MessageService', () => {
     repository = {
       create: jest.fn().mockImplementation((data: Partial<Message>) => ({ id: 'msg-uuid-1', ...data }) as Message),
       save: jest.fn().mockImplementation(msg => Promise.resolve(msg)),
+      findOne: jest.fn().mockResolvedValue(null),
+      update: jest.fn().mockResolvedValue({ affected: 1 }),
       createQueryBuilder: jest.fn(),
     };
 
