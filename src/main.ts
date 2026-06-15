@@ -5,9 +5,10 @@ import helmet from 'helmet';
 import { AppModule } from './app.module';
 import { ShutdownService } from './common/services/shutdown.service';
 import { createSwaggerConfig } from './config/swagger.config';
+import { resolveCorsPolicy, isSwaggerEnabled, resolveBodyLimit } from './config/bootstrap-security';
 import { BullBoardAuthMiddleware } from './common/security/bull-board-auth.middleware';
 import { AuthService } from './modules/auth/auth.service';
-import { Request, Response, NextFunction } from 'express';
+import { Request, Response, NextFunction, json, urlencoded } from 'express';
 import * as dotenv from 'dotenv';
 import * as fs from 'fs';
 import * as path from 'path';
@@ -69,7 +70,14 @@ STORAGE_PATH=./data/media
 }
 
 async function bootstrap() {
-  const app = await NestFactory.create(AppModule);
+  // Disable Nest's default body parser so we can set an explicit size cap below.
+  const app = await NestFactory.create(AppModule, { bodyParser: false });
+
+  // Cap request body size (DoS hardening). Media sends carry base64 in the JSON body,
+  // so the default is generous; tune with BODY_SIZE_LIMIT.
+  const bodyLimit = resolveBodyLimit(process.env.BODY_SIZE_LIMIT);
+  app.use(json({ limit: bodyLimit }));
+  app.use(urlencoded({ extended: true, limit: bodyLimit }));
 
   // Enable shutdown hooks for graceful shutdown
   app.enableShutdownHooks();
@@ -107,21 +115,26 @@ async function bootstrap() {
     }),
   );
 
-  // CORS Configuration (Phase 3 Security Audit)
-  const allowedOrigins = process.env.CORS_ORIGINS?.split(',').map(o => o.trim()) || ['*'];
+  // CORS Configuration (Phase 3 Security Audit; #221 hardening)
+  const corsPolicy = resolveCorsPolicy(process.env.CORS_ORIGINS, process.env.NODE_ENV);
+  if (process.env.NODE_ENV === 'production' && corsPolicy.origins.length === 0 && !corsPolicy.allowAnyOrigin) {
+    console.warn(
+      '[Bootstrap] No explicit CORS_ORIGINS in production (wildcard "*" is refused): cross-origin browser ' +
+        'requests will be blocked. Set CORS_ORIGINS to your dashboard origin(s).',
+    );
+  }
   app.enableCors({
     origin: (origin: string | undefined, callback: (err: Error | null, allow?: boolean) => void) => {
       // Allow requests with no origin (mobile apps, Postman, server-to-server)
       if (!origin) return callback(null, true);
 
-      // Check if wildcard or origin matches
-      if (allowedOrigins.includes('*') || allowedOrigins.includes(origin)) {
+      if (corsPolicy.allowAnyOrigin || corsPolicy.origins.includes(origin)) {
         callback(null, true);
       } else {
         callback(new Error('Not allowed by CORS'));
       }
     },
-    credentials: true,
+    credentials: corsPolicy.credentials,
     methods: ['GET', 'POST', 'PUT', 'DELETE', 'PATCH', 'OPTIONS'],
     allowedHeaders: ['Content-Type', 'X-API-Key', 'Authorization', 'X-Request-ID'],
     exposedHeaders: ['X-RateLimit-Limit', 'X-RateLimit-Remaining', 'X-RateLimit-Reset'],
@@ -144,11 +157,12 @@ async function bootstrap() {
     }),
   );
 
-  // Swagger documentation
-  const config = createSwaggerConfig();
-
-  const document = SwaggerModule.createDocument(app, config);
-  SwaggerModule.setup('api/docs', app, document);
+  // Swagger documentation (gated by ENABLE_SWAGGER; default on)
+  if (isSwaggerEnabled(process.env.ENABLE_SWAGGER)) {
+    const config = createSwaggerConfig();
+    const document = SwaggerModule.createDocument(app, config);
+    SwaggerModule.setup('api/docs', app, document);
+  }
 
   // Protect the Bull Board queue UI (/api/admin/queues). It is mounted by
   // @bull-board/nestjs as raw Express middleware that the global ApiKeyGuard

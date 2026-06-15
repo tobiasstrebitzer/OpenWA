@@ -10,6 +10,23 @@ import { createLogger } from '../../common/services/logger.service';
 
 const API_KEY_FILE = join(process.cwd(), 'data', '.api-key');
 
+/**
+ * Resolves the API key to seed on first boot (when no keys exist yet).
+ * Precedence: an explicit `API_MASTER_KEY` always wins; otherwise a
+ * cryptographically random `owa_k1_` key is generated — the secure default,
+ * including in non-production. The legacy fixed `dev-admin-key` is used only when
+ * a developer explicitly opts in with `ALLOW_DEV_API_KEY=true`, never by default.
+ */
+export function resolveSeedApiKey(): string {
+  if (process.env.API_MASTER_KEY) {
+    return process.env.API_MASTER_KEY;
+  }
+  if (process.env.ALLOW_DEV_API_KEY === 'true') {
+    return 'dev-admin-key';
+  }
+  return `owa_k1_${randomBytes(32).toString('hex')}`;
+}
+
 @Injectable()
 export class AuthService implements OnModuleInit {
   private readonly logger = createLogger('AuthService');
@@ -26,10 +43,7 @@ export class AuthService implements OnModuleInit {
     let isNewKey = false;
 
     if (count === 0) {
-      // Use env var if set, otherwise auto-generate predictable key in development, random key in production
-      displayKey =
-        process.env.API_MASTER_KEY ||
-        (process.env.NODE_ENV === 'production' ? `owa_k1_${randomBytes(32).toString('hex')}` : 'dev-admin-key');
+      displayKey = resolveSeedApiKey();
 
       await this.seedApiKey(displayKey, 'Default Admin Key', ApiKeyRole.ADMIN);
       isNewKey = true;

@@ -33,8 +33,9 @@ startup logs and written to:
 - `data/.api-key` for local development
 - `/app/data/.api-key` inside the API container for Docker deployments
 
-Local development uses `dev-admin-key` when no keys exist; production creates a
-random `owa_k1_...` admin key. Use that admin key to create scoped keys for
+By default a random `owa_k1_...` admin key is generated on first run in all
+environments; set `ALLOW_DEV_API_KEY=true` to seed the well-known `dev-admin-key`
+for local development only. Use that admin key to create scoped keys for
 integrations. The full generated key is returned only once in the `apiKey`
 field of the create response.
 

@@ -153,6 +153,7 @@ export class InfraController {
   ) {}
 
   @Get('status')
+  @RequireRole(ApiKeyRole.ADMIN)
   @ApiOperation({ summary: 'Get infrastructure status' })
   @ApiResponse({ status: 200, description: 'Infrastructure status' })
   async getStatus(): Promise<InfraStatus> {
@@ -193,6 +194,7 @@ export class InfraController {
   }
 
   @Get('engines')
+  @RequireRole(ApiKeyRole.ADMIN)
   @ApiOperation({ summary: 'Get available WhatsApp engines' })
   @ApiResponse({ status: 200, description: 'List of available engines' })
   getEngines(): Array<{ id: string; name: string; enabled: boolean; features: string[] }> {
@@ -200,6 +202,7 @@ export class InfraController {
   }
 
   @Get('engines/current')
+  @RequireRole(ApiKeyRole.ADMIN)
   @ApiOperation({ summary: 'Get current active engine' })
   @ApiResponse({ status: 200, description: 'Current engine info' })
   getCurrentEngine(): { engineType: string } {
@@ -682,6 +685,7 @@ export class InfraController {
   // ============================================================================
 
   @Get('storage/files/count')
+  @RequireRole(ApiKeyRole.ADMIN)
   @ApiOperation({ summary: 'Get file count in current storage' })
   @ApiResponse({ status: 200, description: 'File count and size' })
   async getStorageFileCount(): Promise<{
