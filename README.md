@@ -130,6 +130,40 @@ npm run dev
 
 ---
 
+## 🔒 Security Architecture
+
+### Docker Socket Proxy
+
+The production stack never exposes `/var/run/docker.sock` directly to the application container. Instead, a dedicated `docker-proxy` sidecar (based on [`tecnativa/docker-socket-proxy`](https://github.com/Tecnativa/docker-socket-proxy)) acts as the sole gateway to the Docker daemon:
+
+```
+openwa-api  ──TCP 2375──▶  docker-proxy  ──unix──▶  /var/run/docker.sock
+```
+
+Only the operations needed for container orchestration are enabled (`CONTAINERS`, `IMAGES`, `VOLUMES`, `INFO`, `PING`, `POST`, `DELETE`). The application connects via the `DOCKER_HOST=tcp://docker-proxy:2375` environment variable, which `DockerService` detects automatically.
+
+---
+
+## 🔒 Security Architecture
+
+### Non-root Container Execution
+
+The production image never runs the Node.js process as root. On startup, the container follows this chain:
+
+```
+dumb-init (PID 1)
+  └─ docker-entrypoint.sh (root — fixes named-volume ownership via chown)
+       └─ gosu openwa node dist/main  (drops to the openwa user)
+```
+
+- **dumb-init** is PID 1 and forwards signals (SIGTERM, etc.) for graceful shutdown.
+- **docker-entrypoint.sh** runs as root only long enough to `chown` the named-volume mount points so the `openwa` user can write to them.
+- **gosu** performs a clean `exec`-based privilege drop — no `su` or `sudo` wrappers, so the node process is the direct child of dumb-init.
+
+Named volumes (e.g. `openwa-data`) get their ownership corrected automatically on every start, so no manual `chown` step is needed after volume creation.
+
+---
+
 ## 🏭 Production Deployment
 
 For production, use the main `docker-compose.yml` with optional services:
