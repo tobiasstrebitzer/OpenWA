@@ -96,6 +96,35 @@ export interface InfraStatus {
   engine: { type: string; headless: boolean };
 }
 
+// Saved infrastructure config (from data/.env.generated) used to hydrate the form.
+// Secrets are never returned — `*Set` flags indicate whether a value is stored.
+export interface SavedConfig {
+  database: {
+    type: 'sqlite' | 'postgres';
+    builtIn: boolean;
+    host: string;
+    port: string;
+    username: string;
+    database: string;
+    poolSize: number;
+    sslEnabled: boolean;
+    sslRejectUnauthorized: boolean;
+    passwordSet: boolean;
+  };
+  redis: { enabled: boolean; builtIn: boolean; host: string; port: string; passwordSet: boolean };
+  queue: { enabled: boolean };
+  storage: {
+    type: 'local' | 's3';
+    builtIn: boolean;
+    localPath: string;
+    s3Bucket: string;
+    s3Region: string;
+    s3Endpoint: string;
+    s3CredentialsSet: boolean;
+  };
+  engine: { headless: boolean; sessionDataPath: string; browserArgs: string };
+}
+
 export interface SaveConfigPayload {
   database?: {
     type: 'sqlite' | 'postgres';
@@ -304,6 +333,7 @@ export const healthApi = {
 
 export const infraApi = {
   getStatus: () => request<InfraStatus>('/infra/status'),
+  getConfig: () => request<SavedConfig>('/infra/config'),
   updateConfig: (config: Partial<InfraStatus>) =>
     request<InfraStatus>('/infra/config', {
       method: 'PUT',
