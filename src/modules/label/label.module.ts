@@ -1,9 +1,10 @@
 import { Module } from '@nestjs/common';
-import { LabelController } from './label.controller';
+import { LabelActions } from './label.actions';
+import { ApiKeyGuard } from '../auth/guards/api-key.guard';
 import { SessionModule } from '../session/session.module';
 
 @Module({
   imports: [SessionModule],
-  controllers: [LabelController],
+  providers: [LabelActions, ApiKeyGuard],
 })
 export class LabelModule {}

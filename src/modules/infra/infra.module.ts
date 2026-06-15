@@ -1,10 +1,11 @@
 import { Module } from '@nestjs/common';
-import { InfraController } from './infra.controller';
+import { InfraActions } from './infra.actions';
+import { ApiKeyGuard } from '../auth/guards/api-key.guard';
 import { EngineModule } from '../../engine/engine.module';
 import { DockerModule } from '../docker';
 
 @Module({
   imports: [EngineModule, DockerModule],
-  controllers: [InfraController],
+  providers: [InfraActions, ApiKeyGuard],
 })
 export class InfraModule {}

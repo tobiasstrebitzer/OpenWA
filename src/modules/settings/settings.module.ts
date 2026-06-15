@@ -1,7 +1,8 @@
 import { Module } from '@nestjs/common';
-import { SettingsController } from './settings.controller';
+import { SettingsActions } from './settings.actions';
+import { ApiKeyGuard } from '../auth/guards/api-key.guard';
 
 @Module({
-  controllers: [SettingsController],
+  providers: [SettingsActions, ApiKeyGuard],
 })
 export class SettingsModule {}

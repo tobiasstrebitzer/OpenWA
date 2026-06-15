@@ -1,20 +1,20 @@
 import { Test, TestingModule } from '@nestjs/testing';
-import { HealthController } from './health.controller';
+import { HealthActions } from './health.actions';
 
-describe('HealthController', () => {
-  let controller: HealthController;
+describe('HealthActions', () => {
+  let actions: HealthActions;
 
   beforeEach(async () => {
     const module: TestingModule = await Test.createTestingModule({
-      controllers: [HealthController],
+      providers: [HealthActions],
     }).compile();
 
-    controller = module.get<HealthController>(HealthController);
+    actions = module.get<HealthActions>(HealthActions);
   });
 
   describe('check', () => {
     it('should return ok status', () => {
-      const result = controller.check();
+      const result = actions.check();
 
       expect(result.status).toBe('ok');
       expect(result.timestamp).toBeDefined();
@@ -23,7 +23,7 @@ describe('HealthController', () => {
 
   describe('liveness', () => {
     it('should return ok status for liveness probe', () => {
-      const result = controller.liveness();
+      const result = actions.liveness();
 
       expect(result.status).toBe('ok');
     });
@@ -31,7 +31,7 @@ describe('HealthController', () => {
 
   describe('readiness', () => {
     it('should return ok status for readiness probe', () => {
-      const result = controller.readiness();
+      const result = actions.readiness();
 
       expect(result.status).toBe('ok');
     });
