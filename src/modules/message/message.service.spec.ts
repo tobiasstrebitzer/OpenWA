@@ -1,11 +1,13 @@
 import { Test, TestingModule } from '@nestjs/testing';
 import { getRepositoryToken } from '@nestjs/typeorm';
 import { Repository } from 'typeorm';
-import { BadRequestException } from '@nestjs/common';
+import { BadRequestException, NotFoundException } from '@nestjs/common';
 import { MessageService } from './message.service';
 import { Message, MessageDirection, MessageStatus } from './entities/message.entity';
 import { SessionService } from '../session/session.service';
 import { HookManager } from '../../core/hooks';
+import { TemplateService } from '../template/template.service';
+import { Template } from '../template/entities/template.entity';
 
 const mockEngineResult = { id: 'wa-msg-1', timestamp: 1706868000 };
 
@@ -32,6 +34,7 @@ describe('MessageService', () => {
   let repository: jest.Mocked<Partial<Repository<Message>>>;
   let sessionService: jest.Mocked<Partial<SessionService>>;
   let hookManager: jest.Mocked<Partial<HookManager>>;
+  let templateService: jest.Mocked<Partial<TemplateService>>;
   let mockEngine: ReturnType<typeof createMockEngine>;
 
   beforeEach(async () => {
@@ -55,12 +58,17 @@ describe('MessageService', () => {
       }),
     };
 
+    templateService = {
+      resolve: jest.fn(),
+    };
+
     const module: TestingModule = await Test.createTestingModule({
       providers: [
         MessageService,
         { provide: getRepositoryToken(Message, 'data'), useValue: repository },
         { provide: SessionService, useValue: sessionService },
         { provide: HookManager, useValue: hookManager },
+        { provide: TemplateService, useValue: templateService },
       ],
     }).compile();
 
@@ -131,6 +139,91 @@ describe('MessageService', () => {
       await expect(service.sendText('inactive', { chatId: 'test@c.us', text: 'hello' })).rejects.toThrow(
         BadRequestException,
       );
+    });
+  });
+
+  // ── sendTemplate ──────────────────────────────────────────────────
+
+  describe('sendTemplate', () => {
+    function mockTemplate(overrides: Partial<Template> = {}): Template {
+      return {
+        id: 'tpl-1',
+        sessionId: 'sess-1',
+        name: 'order-confirmation',
+        body: 'Hi {{customer}}, your order {{orderId}} shipped.',
+        header: null,
+        footer: null,
+        createdAt: new Date(),
+        updatedAt: new Date(),
+        session: undefined as unknown as Template['session'],
+        ...overrides,
+      };
+    }
+
+    beforeEach(() => {
+      // Echo the supplied input back through the hook so the rendered text
+      // reaches the engine via the delegated sendText path.
+      (hookManager.execute as jest.Mock).mockImplementation((event: string, data: unknown) =>
+        Promise.resolve({ continue: true, data }),
+      );
+    });
+
+    it('should resolve the template, render variables, and delegate to sendText', async () => {
+      (templateService.resolve as jest.Mock).mockResolvedValue(mockTemplate());
+
+      const result = await service.sendTemplate('sess-1', {
+        chatId: '628123456789@c.us',
+        templateName: 'order-confirmation',
+        vars: { customer: 'Alice', orderId: '1234' },
+      });
+
+      expect(templateService.resolve).toHaveBeenCalledWith('sess-1', {
+        templateId: undefined,
+        templateName: 'order-confirmation',
+      });
+      expect(mockEngine.sendTextMessage).toHaveBeenCalledWith(
+        '628123456789@c.us',
+        'Hi Alice, your order 1234 shipped.',
+      );
+      expect(result.messageId).toBe('wa-msg-1');
+    });
+
+    it('should flatten header and footer around the body with blank lines', async () => {
+      (templateService.resolve as jest.Mock).mockResolvedValue(
+        mockTemplate({ header: 'OpenWA Store', body: 'Hello {{customer}}', footer: 'Reply STOP to opt out' }),
+      );
+
+      await service.sendTemplate('sess-1', {
+        chatId: 'test@c.us',
+        templateId: 'tpl-1',
+        vars: { customer: 'Bob' },
+      });
+
+      expect(mockEngine.sendTextMessage).toHaveBeenCalledWith(
+        'test@c.us',
+        'OpenWA Store\n\nHello Bob\n\nReply STOP to opt out',
+      );
+    });
+
+    it('should leave unmatched placeholders literal', async () => {
+      (templateService.resolve as jest.Mock).mockResolvedValue(mockTemplate({ body: 'Hi {{customer}} {{unknown}}' }));
+
+      await service.sendTemplate('sess-1', {
+        chatId: 'test@c.us',
+        templateId: 'tpl-1',
+        vars: { customer: 'Alice' },
+      });
+
+      expect(mockEngine.sendTextMessage).toHaveBeenCalledWith('test@c.us', 'Hi Alice {{unknown}}');
+    });
+
+    it('should propagate NotFoundException when the template cannot be resolved', async () => {
+      (templateService.resolve as jest.Mock).mockRejectedValue(new NotFoundException('Template not found'));
+
+      await expect(service.sendTemplate('sess-1', { chatId: 'test@c.us', templateName: 'missing' })).rejects.toThrow(
+        NotFoundException,
+      );
+      expect(mockEngine.sendTextMessage).not.toHaveBeenCalled();
     });
   });
 

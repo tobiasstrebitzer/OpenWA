@@ -223,6 +223,12 @@ export class BulkMessageService {
   private applyVariables(content: BulkMessageContent, variables?: Record<string, string>): BulkMessageContent {
     if (!variables) return content;
 
+    // NOTE: This single-brace `{name}` convention differs from the shared
+    // server-side template renderer (`renderTemplate` in
+    // common/utils/template-render.ts) which uses double-brace `{{name}}`
+    // placeholders. The two conventions should be reconciled onto the shared
+    // helper in a follow-up so the gateway exposes one consistent templating
+    // syntax. See issue #69.
     const replaceVars = (str: string): string => {
       return str.replace(/\{(\w+)\}/g, (_, key: string) => variables[key] || `{${key}}`);
     };
