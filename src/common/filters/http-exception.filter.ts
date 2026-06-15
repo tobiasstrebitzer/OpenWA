@@ -1,6 +1,7 @@
 import { ExceptionFilter, Catch, ArgumentsHost, HttpException, HttpStatus } from '@nestjs/common';
 import { Response, Request } from 'express';
 import { ApiResponse } from '../interfaces/response.interface';
+import { EngineNotReadyError } from '../errors/engine-not-ready.error';
 
 @Catch()
 export class HttpExceptionFilter implements ExceptionFilter {
@@ -41,6 +42,12 @@ export class HttpExceptionFilter implements ExceptionFilter {
       if (code === 'INTERNAL_ERROR') {
         code = this.getErrorCode(status);
       }
+    } else if (exception instanceof EngineNotReadyError) {
+      // Engine op attempted while the session is not connected (#100): surface a
+      // clear, retryable 409 instead of a 500.
+      status = HttpStatus.CONFLICT;
+      code = 'SESSION_NOT_READY';
+      message = 'Session is not connected. The WhatsApp client is not ready.';
     } else if (exception instanceof Error) {
       message = exception.message;
     }
