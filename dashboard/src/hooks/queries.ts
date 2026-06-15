@@ -213,6 +213,14 @@ export function useInfraStatusQuery() {
   });
 }
 
+export function useInfraConfigQuery() {
+  return useQuery({
+    queryKey: ['infra', 'config'],
+    queryFn: infraApi.getConfig,
+    staleTime: 30_000,
+  });
+}
+
 // ── Plugin Queries ────────────────────────────────────────────────────
 
 export function usePluginsQuery() {

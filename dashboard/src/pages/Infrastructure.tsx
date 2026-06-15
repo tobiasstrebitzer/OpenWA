@@ -15,7 +15,7 @@ import {
 } from 'lucide-react';
 import { infraApi } from '../services/api';
 import { useDocumentTitle } from '../hooks/useDocumentTitle';
-import { useInfraStatusQuery } from '../hooks/queries';
+import { useInfraStatusQuery, useInfraConfigQuery } from '../hooks/queries';
 import { PageHeader } from '../components/PageHeader';
 import { useToast } from '../components/Toast';
 import './Infrastructure.css';
@@ -89,6 +89,7 @@ export function Infrastructure() {
   useDocumentTitle(t('infrastructure.title'));
   const toast = useToast();
   const { data: infraStatus, isLoading: loading } = useInfraStatusQuery();
+  const { data: savedConfig } = useInfraConfigQuery();
   const [saving, setSaving] = useState(false);
   const [showRestartModal, setShowRestartModal] = useState(false);
   const [restartCountdown, setRestartCountdown] = useState(0);
@@ -185,6 +186,43 @@ export function Infrastructure() {
       webhooks: infraStatus.queue.webhooks,
     });
   }, [infraStatus]);
+
+  // Hydrate the editable form from the saved config (data/.env.generated) so the form
+  // reflects what was actually persisted — including fields /status does not expose
+  // (username, pool size, SSL flags, S3 details). Secrets are never returned, so their
+  // inputs stay empty; an empty submit preserves the stored secret on the backend (#226).
+  useEffect(() => {
+    if (!savedConfig) return;
+    setDbConfig(prev => ({
+      ...prev,
+      type: savedConfig.database.type,
+      builtIn: savedConfig.database.builtIn,
+      host: savedConfig.database.host || prev.host,
+      port: savedConfig.database.port || prev.port,
+      username: savedConfig.database.username || prev.username,
+      database: savedConfig.database.database || prev.database,
+      poolSize: savedConfig.database.poolSize,
+      sslEnabled: savedConfig.database.sslEnabled,
+      sslRejectUnauthorized: savedConfig.database.sslRejectUnauthorized,
+    }));
+    setRedisEnabled(savedConfig.redis.enabled);
+    setRedisConfig(prev => ({
+      ...prev,
+      builtIn: savedConfig.redis.builtIn,
+      host: savedConfig.redis.host || prev.host,
+      port: savedConfig.redis.port || prev.port,
+    }));
+    setQueueEnabled(savedConfig.queue.enabled);
+    setStorageConfig(prev => ({
+      ...prev,
+      type: savedConfig.storage.type,
+      builtIn: savedConfig.storage.builtIn,
+      localPath: savedConfig.storage.localPath || prev.localPath,
+      s3Bucket: savedConfig.storage.s3Bucket || prev.s3Bucket,
+      s3Region: savedConfig.storage.s3Region || prev.s3Region,
+      s3Endpoint: savedConfig.storage.s3Endpoint || prev.s3Endpoint,
+    }));
+  }, [savedConfig]);
 
   if (loading) {
     return (
