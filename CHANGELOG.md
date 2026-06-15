@@ -5,7 +5,7 @@ All notable changes to this project will be documented in this file.
 The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.0.0/),
 and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
 
-## [Unreleased]
+## [0.2.0] - 2026-06-15
 
 A major feature- and security-focused release. Adds six dashboard languages and a
 real-time Chats view, completes the outgoing-message and delivery-state webhook
@@ -17,7 +17,7 @@ session lifecycle, and container runtime, and upgrades the WhatsApp engine. See
 
 - **Dashboard / Chats:** A new real-time Chats view — browse a session's
   conversations, stream incoming and outgoing messages live over WebSocket, send
-  text and media, and mark chats as read. Thanks @aytekinardas (#152).
+  text and media, and mark chats as read. Thanks @akbarxleqi (#152).
 - **Dashboard / i18n:** Six new languages on a single canonical language picker —
   Simplified Chinese, Traditional Chinese, Arabic (full RTL), Telugu, French, and
   Italian — alongside the existing English and Hebrew. The picker now also appears
@@ -28,7 +28,7 @@ session lifecycle, and container runtime, and upgrades the WhatsApp engine. See
   full CRUD under `/sessions/:id/templates` plus a
   `POST /sessions/:id/messages/send-template` endpoint that renders and sends.
   Text templates only; interactive buttons/list/HSM are not supported on the
-  whatsapp-web.js engine. (#69)
+  whatsapp-web.js engine. Thanks @esakarya (#69).
 - **Messages:** `GET /sessions/:id/messages/:chatId/history` reads chat history live
   from WhatsApp (bypassing the local DB), with optional base64 media; `limit` is
   clamped to 1–100. Thanks @jgalea (#96, closes #162).
