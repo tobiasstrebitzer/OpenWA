@@ -2,7 +2,6 @@ import { EventEmitter } from 'events';
 import { Client, LocalAuth, MessageMedia, MessageTypes } from 'whatsapp-web.js';
 import * as qrcode from 'qrcode';
 import * as path from 'path';
-import * as os from 'os';
 import {
   IWhatsAppEngine,
   EngineStatus,
@@ -28,6 +27,7 @@ import {
   ProductQueryOptions,
   PaginatedProducts,
   ChatSummary,
+  ChatState,
   RevokedMessage,
   ReactionEvent,
 } from '../interfaces/whatsapp-engine.interface';
@@ -162,14 +162,6 @@ export class WhatsAppWebJsAdapter extends EventEmitter implements IWhatsAppEngin
         '--no-zygote',
         '--disable-gpu',
       ];
-
-      // Give Chromium an explicit, writable crash-dumps dir so its crashpad handler always gets a
-      // --database. On some hardened/container hosts Chromium otherwise fails to launch with
-      // "chrome_crashpad_handler: --database is required" (#254/#242). Skipped if the operator
-      // already supplied their own --crash-dumps-dir via PUPPETEER_ARGS.
-      if (!puppeteerArgs.some(a => a.startsWith('--crash-dumps-dir'))) {
-        puppeteerArgs.push(`--crash-dumps-dir=${path.join(os.tmpdir(), 'openwa-crashpad')}`);
-      }
 
       // Add proxy configuration if provided
       if (this.config.proxy) {
@@ -1174,6 +1166,23 @@ export class WhatsAppWebJsAdapter extends EventEmitter implements IWhatsAppEngin
     } catch (error) {
       this.logger.error(`Error deleting chat ${chatId}`, String(error));
       return false;
+    }
+  }
+
+  async sendChatState(chatId: string, state: ChatState): Promise<void> {
+    this.ensureReady();
+    try {
+      const chat = await this.client!.getChatById(chatId);
+      if (state === 'typing') {
+        await chat.sendStateTyping();
+      } else if (state === 'recording') {
+        await chat.sendStateRecording();
+      } else {
+        await chat.clearState();
+      }
+    } catch (error) {
+      // Presence is best-effort — a failure here must never break the surrounding send.
+      this.logger.error(`Error setting chat state '${state}' for ${chatId}`, String(error));
     }
   }
 
