@@ -530,6 +530,8 @@
     "disable": "禁用",
     "healthCheck": "健康检查",
     "configure": "配置",
+    "copyUrl": "复制网址",
+    "copied": "已复制到剪贴板",
     "empty": {
       "title": "未找到插件",
       "description": "安装插件以扩展 OpenWA 功能"
@@ -543,7 +545,8 @@
       "sessionDataPath": "会话数据路径",
       "browserArgs": "浏览器参数",
       "noOptions": "此插件没有可用配置项",
-      "save": "保存配置"
+      "save": "保存配置",
+      "authNote": "身份验证：设置 Bearer 或 X-Api-Key 请求头"
     },
     "toasts": {
       "errorTitle": "插件错误",

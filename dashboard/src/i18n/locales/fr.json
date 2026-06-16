@@ -530,6 +530,8 @@
     "disable": "Désactiver",
     "healthCheck": "Bilan de santé",
     "configure": "Configurer",
+    "copyUrl": "Copier l'URL",
+    "copied": "Copié dans le presse-papiers",
     "empty": {
       "title": "Aucun plugin trouvé",
       "description": "Installez des plugins pour étendre les fonctionnalités d'OpenWA"
@@ -543,7 +545,8 @@
       "sessionDataPath": "Chemin des données de session",
       "browserArgs": "Arguments du navigateur",
       "noOptions": "Aucune option de configuration disponible pour ce plugin",
-      "save": "Enregistrer la configuration"
+      "save": "Enregistrer la configuration",
+      "authNote": "Authentification : définissez l'en-tête Bearer ou X-Api-Key"
     },
     "toasts": {
       "errorTitle": "Erreur de plugin",

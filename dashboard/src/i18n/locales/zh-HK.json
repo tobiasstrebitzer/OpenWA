@@ -530,6 +530,8 @@
     "disable": "停用",
     "healthCheck": "健康檢查",
     "configure": "設定",
+    "copyUrl": "複製網址",
+    "copied": "已複製到剪貼簿",
     "empty": {
       "title": "找不到外掛",
       "description": "安裝外掛以擴展 OpenWA 功能"
@@ -543,7 +545,8 @@
       "sessionDataPath": "工作階段資料路徑",
       "browserArgs": "瀏覽器參數",
       "noOptions": "此外掛沒有可用設定選項",
-      "save": "儲存設定"
+      "save": "儲存設定",
+      "authNote": "驗證：設定 Bearer 或 X-Api-Key 標頭"
     },
     "toasts": {
       "errorTitle": "外掛錯誤",

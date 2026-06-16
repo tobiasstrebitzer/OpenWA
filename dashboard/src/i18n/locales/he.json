@@ -530,6 +530,8 @@
     "disable": "השבתה",
     "healthCheck": "בדיקת תקינות",
     "configure": "הגדרה",
+    "copyUrl": "העתק כתובת",
+    "copied": "הועתק ללוח",
     "empty": {
       "title": "לא נמצאו תוספים",
       "description": "ניתן להתקין תוספים כדי להרחיב את היכולות של OpenWA"
@@ -543,7 +545,8 @@
       "sessionDataPath": "נתיב נתוני Session",
       "browserArgs": "ארגומנטים של הדפדפן",
       "noOptions": "אין אפשרויות הגדרה זמינות עבור תוסף זה",
-      "save": "שמירת תצורה"
+      "save": "שמירת תצורה",
+      "authNote": "אימות: הגדר כותרת Bearer או X-Api-Key"
     },
     "toasts": {
       "errorTitle": "שגיאת תוסף",

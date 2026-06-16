@@ -28,6 +28,7 @@ import {
   queryKeys,
 } from '../hooks/queries';
 import { PageHeader } from '../components/PageHeader';
+import { CopyableUrl } from '../components/CopyableUrl';
 import { useToast } from '../components/Toast';
 import './Plugins.css';
 
@@ -87,6 +88,9 @@ export default function Plugins() {
         await pluginsApi.enable(plugin.id);
       }
       refetchAll();
+      if (plugin.requiresRestart) {
+        toast.success(t('plugins.toasts.savedTitle'), t('plugins.toasts.savedDesc'));
+      }
     } catch (err) {
       toast.error(t('plugins.toasts.errorTitle'), err instanceof Error ? err.message : t('plugins.toasts.errorDefault'));
     } finally {
@@ -228,6 +232,21 @@ export default function Plugins() {
                   </div>
                   <span className="plugin-type-label">{plugin.type}</span>
                 </div>
+
+                {plugin.id === 'mcp' &&
+                  plugin.status === 'enabled' &&
+                  (() => {
+                    const url = `${window.location.origin}/mcp`;
+                    return (
+                      <>
+                        <CopyableUrl url={url} />
+                        <div className="config-info-banner">
+                          <Shield size={16} />
+                          <span>{t('plugins.config.authNote')}</span>
+                        </div>
+                      </>
+                    );
+                  })()}
 
                 {plugin.error && (
                   <div className="plugin-error">
