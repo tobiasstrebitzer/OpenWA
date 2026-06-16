@@ -1,5 +1,6 @@
 import { Controller, Get, Post, Put, Delete, Param, Body, HttpCode, HttpStatus } from '@nestjs/common';
 import { ApiTags, ApiOperation, ApiResponse, ApiParam } from '@nestjs/swagger';
+import { Mcp } from '@silkweave/nestjs';
 import { WebhookService } from './webhook.service';
 import { CreateWebhookDto, UpdateWebhookDto, WebhookResponseDto } from './dto';
 import { RequireRole } from '../auth/decorators/auth.decorators';
@@ -19,6 +20,7 @@ export class WebhookController {
     description: 'Webhook created',
     type: WebhookResponseDto,
   })
+  @Mcp()
   async create(@Param('sessionId') sessionId: string, @Body() dto: CreateWebhookDto): Promise<WebhookResponseDto> {
     return WebhookResponseDto.fromEntity(await this.webhookService.create(sessionId, dto));
   }
@@ -32,6 +34,7 @@ export class WebhookController {
     description: 'List of webhooks',
     type: [WebhookResponseDto],
   })
+  @Mcp()
   async findBySession(@Param('sessionId') sessionId: string): Promise<WebhookResponseDto[]> {
     return WebhookResponseDto.fromEntities(await this.webhookService.findBySession(sessionId));
   }
@@ -47,6 +50,7 @@ export class WebhookController {
     type: WebhookResponseDto,
   })
   @ApiResponse({ status: 404, description: 'Webhook not found' })
+  @Mcp()
   async findOne(@Param('id') id: string): Promise<WebhookResponseDto> {
     return WebhookResponseDto.fromEntity(await this.webhookService.findOne(id));
   }
@@ -62,6 +66,7 @@ export class WebhookController {
     type: WebhookResponseDto,
   })
   @ApiResponse({ status: 404, description: 'Webhook not found' })
+  @Mcp()
   async update(@Param('id') id: string, @Body() dto: UpdateWebhookDto): Promise<WebhookResponseDto> {
     return WebhookResponseDto.fromEntity(await this.webhookService.update(id, dto));
   }
@@ -73,6 +78,7 @@ export class WebhookController {
   @ApiParam({ name: 'id', description: 'Webhook ID' })
   @ApiResponse({ status: 200, description: 'Test result' })
   @ApiResponse({ status: 404, description: 'Webhook not found' })
+  @Mcp()
   async test(
     @Param('sessionId') sessionId: string,
     @Param('id') id: string,
@@ -88,6 +94,7 @@ export class WebhookController {
   @ApiParam({ name: 'id', description: 'Webhook ID' })
   @ApiResponse({ status: 204, description: 'Webhook deleted' })
   @ApiResponse({ status: 404, description: 'Webhook not found' })
+  @Mcp()
   async delete(@Param('id') id: string): Promise<void> {
     return this.webhookService.delete(id);
   }

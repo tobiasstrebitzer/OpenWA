@@ -269,6 +269,23 @@ curl -X POST http://localhost:2785/api/sessions/{sessionId}/webhooks \
 
 ---
 
+## 🤖 MCP (Model Context Protocol)
+
+OpenWA can expose its API to AI agents as **MCP tools**, additively and **off by default**. The existing REST API is unchanged — individual routes simply opt in, so every MCP tool maps 1:1 to an existing endpoint.
+
+Enable it by setting `MCP_ENABLED=true`. A Streamable-HTTP MCP endpoint then mounts at **`/mcp`**:
+
+```bash
+MCP_ENABLED=true npm run start:dev
+# MCP endpoint: http://localhost:2785/mcp
+```
+
+- **Auth is fully enforced.** Every tool call runs the same API-key guard as REST — pass your key via the `X-API-Key` header. Role requirements (`viewer`/`operator`/`admin`) and per-key session scoping apply exactly as they do over HTTP. (IP-allowlisted keys can't authorize MCP calls, since there's no client IP over MCP.)
+- **What's exposed:** the JSON request/response operations across sessions, messages, groups, contacts, labels, channels, templates, webhooks, catalog, status, stats, plugins, infra and auth (API-key management). Streaming/binary and login-only endpoints are intentionally not exposed.
+- **Disabled by default:** with `MCP_ENABLED` unset, the `/mcp` endpoint is not mounted and there is zero change to REST behavior.
+
+---
+
 ## 🛠 Tech Stack
 
 | Layer         | Technology              |

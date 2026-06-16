@@ -50,6 +50,8 @@
     "@nestjs/swagger": "^11.4.4",
     "@nestjs/throttler": "^6.5.0",
     "@nestjs/typeorm": "^11.0.0",
+    "@silkweave/core": "^2.2.0",
+    "@silkweave/nestjs": "^2.2.0",
     "archiver": "^8.0.0",
     "bullmq": "^5.78.1",
     "class-transformer": "^0.5.1",
@@ -109,6 +111,9 @@
     "testRegex": ".*\\.spec\\.ts$",
     "transform": {
       "^.+\\.(t|j)s$": "ts-jest"
+    },
+    "moduleNameMapper": {
+      "^@silkweave/nestjs$": "<rootDir>/../test/mocks/silkweave-nestjs.ts"
     },
     "collectCoverageFrom": [
       "**/*.(t|j)s"

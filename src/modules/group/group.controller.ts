@@ -1,5 +1,6 @@
 import { Controller, Get, Post, Put, Delete, Param, Body, HttpCode, HttpStatus } from '@nestjs/common';
 import { ApiTags, ApiOperation, ApiResponse, ApiParam, ApiBody } from '@nestjs/swagger';
+import { Mcp } from '@silkweave/nestjs';
 import { GroupService } from './group.service';
 import { CreateGroupDto, ParticipantsDto, GroupSubjectDto, GroupDescriptionDto } from './dto/group.dto';
 
@@ -12,6 +13,7 @@ export class GroupController {
   @ApiOperation({ summary: 'Get all groups for a session' })
   @ApiParam({ name: 'sessionId', description: 'Session ID' })
   @ApiResponse({ status: 200, description: 'List of groups' })
+  @Mcp()
   async findAll(@Param('sessionId') sessionId: string) {
     return this.groupService.getGroups(sessionId);
   }
@@ -22,6 +24,7 @@ export class GroupController {
   @ApiParam({ name: 'groupId', description: 'Group ID (e.g., 120363xxx@g.us)' })
   @ApiResponse({ status: 200, description: 'Group details with participants' })
   @ApiResponse({ status: 404, description: 'Group not found' })
+  @Mcp()
   async findOne(@Param('sessionId') sessionId: string, @Param('groupId') groupId: string) {
     return this.groupService.getGroupInfo(sessionId, groupId);
   }
@@ -31,6 +34,7 @@ export class GroupController {
   @ApiParam({ name: 'sessionId', description: 'Session ID' })
   @ApiBody({ type: CreateGroupDto })
   @ApiResponse({ status: 201, description: 'Group created' })
+  @Mcp()
   async create(@Param('sessionId') sessionId: string, @Body() dto: CreateGroupDto) {
     return this.groupService.createGroup(sessionId, dto.name, dto.participants);
   }
@@ -42,6 +46,7 @@ export class GroupController {
   @ApiBody({ type: ParticipantsDto })
   @ApiResponse({ status: 200, description: 'Participants added' })
   @HttpCode(HttpStatus.OK)
+  @Mcp()
   async addParticipants(
     @Param('sessionId') sessionId: string,
     @Param('groupId') groupId: string,
@@ -57,6 +62,7 @@ export class GroupController {
   @ApiParam({ name: 'groupId', description: 'Group ID' })
   @ApiBody({ type: ParticipantsDto })
   @ApiResponse({ status: 200, description: 'Participants removed' })
+  @Mcp()
   async removeParticipants(
     @Param('sessionId') sessionId: string,
     @Param('groupId') groupId: string,
@@ -73,6 +79,7 @@ export class GroupController {
   @ApiBody({ type: ParticipantsDto })
   @ApiResponse({ status: 200, description: 'Participants promoted' })
   @HttpCode(HttpStatus.OK)
+  @Mcp()
   async promoteParticipants(
     @Param('sessionId') sessionId: string,
     @Param('groupId') groupId: string,
@@ -89,6 +96,7 @@ export class GroupController {
   @ApiBody({ type: ParticipantsDto })
   @ApiResponse({ status: 200, description: 'Participants demoted' })
   @HttpCode(HttpStatus.OK)
+  @Mcp()
   async demoteParticipants(
     @Param('sessionId') sessionId: string,
     @Param('groupId') groupId: string,
@@ -104,6 +112,7 @@ export class GroupController {
   @ApiParam({ name: 'groupId', description: 'Group ID' })
   @ApiBody({ type: GroupSubjectDto })
   @ApiResponse({ status: 200, description: 'Subject updated' })
+  @Mcp()
   async setSubject(
     @Param('sessionId') sessionId: string,
     @Param('groupId') groupId: string,
@@ -119,6 +128,7 @@ export class GroupController {
   @ApiParam({ name: 'groupId', description: 'Group ID' })
   @ApiBody({ type: GroupDescriptionDto })
   @ApiResponse({ status: 200, description: 'Description updated' })
+  @Mcp()
   async setDescription(
     @Param('sessionId') sessionId: string,
     @Param('groupId') groupId: string,
@@ -134,6 +144,7 @@ export class GroupController {
   @ApiParam({ name: 'groupId', description: 'Group ID' })
   @ApiResponse({ status: 200, description: 'Left the group' })
   @HttpCode(HttpStatus.OK)
+  @Mcp()
   async leave(@Param('sessionId') sessionId: string, @Param('groupId') groupId: string) {
     await this.groupService.leaveGroup(sessionId, groupId);
     return { success: true, message: 'Left the group' };
@@ -146,6 +157,7 @@ export class GroupController {
   @ApiParam({ name: 'sessionId', description: 'Session ID' })
   @ApiParam({ name: 'groupId', description: 'Group ID' })
   @ApiResponse({ status: 200, description: 'Group invite code' })
+  @Mcp()
   async getInviteCode(@Param('sessionId') sessionId: string, @Param('groupId') groupId: string) {
     const inviteCode = await this.groupService.getGroupInviteCode(sessionId, groupId);
     return {
@@ -160,6 +172,7 @@ export class GroupController {
   @ApiParam({ name: 'sessionId', description: 'Session ID' })
   @ApiParam({ name: 'groupId', description: 'Group ID' })
   @ApiResponse({ status: 200, description: 'New invite code generated' })
+  @Mcp()
   async revokeInviteCode(@Param('sessionId') sessionId: string, @Param('groupId') groupId: string) {
     const newCode = await this.groupService.revokeGroupInviteCode(sessionId, groupId);
     return {

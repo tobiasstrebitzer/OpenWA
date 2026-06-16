@@ -1,5 +1,6 @@
 import { Controller, Get, Post, Param, Body, Query } from '@nestjs/common';
 import { ApiTags, ApiOperation } from '@nestjs/swagger';
+import { Mcp } from '@silkweave/nestjs';
 import { CatalogService } from './catalog.service';
 import { SendProductDto, SendCatalogDto, ProductQueryDto } from './dto/send-product.dto';
 
@@ -10,30 +11,35 @@ export class CatalogController {
 
   @Get('catalog')
   @ApiOperation({ summary: 'Get business catalog info' })
+  @Mcp()
   async getCatalog(@Param('sessionId') sessionId: string) {
     return this.catalogService.getCatalog(sessionId);
   }
 
   @Get('catalog/products')
   @ApiOperation({ summary: 'List catalog products' })
+  @Mcp()
   async getProducts(@Param('sessionId') sessionId: string, @Query() query: ProductQueryDto) {
     return this.catalogService.getProducts(sessionId, query.page, query.limit);
   }
 
   @Get('catalog/products/:productId')
   @ApiOperation({ summary: 'Get a specific product' })
+  @Mcp()
   async getProduct(@Param('sessionId') sessionId: string, @Param('productId') productId: string) {
     return this.catalogService.getProduct(sessionId, productId);
   }
 
   @Post('messages/send-product')
   @ApiOperation({ summary: 'Send a product message' })
+  @Mcp()
   async sendProduct(@Param('sessionId') sessionId: string, @Body() dto: SendProductDto) {
     return this.catalogService.sendProduct(sessionId, dto.chatId, dto.productId, dto.body);
   }
 
   @Post('messages/send-catalog')
   @ApiOperation({ summary: 'Send catalog link' })
+  @Mcp()
   async sendCatalog(@Param('sessionId') sessionId: string, @Body() dto: SendCatalogDto) {
     return this.catalogService.sendCatalog(sessionId, dto.chatId, dto.body);
   }

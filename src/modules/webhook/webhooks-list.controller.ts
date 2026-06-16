@@ -1,5 +1,6 @@
 import { Controller, Get } from '@nestjs/common';
 import { ApiTags, ApiOperation, ApiResponse } from '@nestjs/swagger';
+import { Mcp } from '@silkweave/nestjs';
 import { WebhookService } from './webhook.service';
 import { WebhookResponseDto } from './dto';
 import { RequireRole } from '../auth/decorators/auth.decorators';
@@ -18,6 +19,7 @@ export class WebhooksListController {
     description: 'List of all webhooks',
     type: [WebhookResponseDto],
   })
+  @Mcp()
   async findAll(): Promise<WebhookResponseDto[]> {
     return WebhookResponseDto.fromEntities(await this.webhookService.findAll());
   }

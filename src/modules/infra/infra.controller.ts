@@ -1,5 +1,6 @@
 import { Controller, Get, Put, Post, Body, BadRequestException } from '@nestjs/common';
 import { ApiTags, ApiOperation, ApiResponse, ApiBody } from '@nestjs/swagger';
+import { Mcp } from '@silkweave/nestjs';
 import { ConfigService } from '@nestjs/config';
 import { DataSource } from 'typeorm';
 import { InjectDataSource } from '@nestjs/typeorm';
@@ -186,6 +187,7 @@ export class InfraController {
   @RequireRole(ApiKeyRole.ADMIN)
   @ApiOperation({ summary: 'Get infrastructure status' })
   @ApiResponse({ status: 200, description: 'Infrastructure status' })
+  @Mcp()
   async getStatus(): Promise<InfraStatus> {
     // Check both database connections
     const mainDbConnected = this.mainDataSource.isInitialized;
@@ -227,6 +229,7 @@ export class InfraController {
   @RequireRole(ApiKeyRole.ADMIN)
   @ApiOperation({ summary: 'Get available WhatsApp engines' })
   @ApiResponse({ status: 200, description: 'List of available engines' })
+  @Mcp()
   getEngines(): Array<{ id: string; name: string; enabled: boolean; features: string[] }> {
     return this.engineFactory.getAvailableEngines();
   }
@@ -235,6 +238,7 @@ export class InfraController {
   @RequireRole(ApiKeyRole.ADMIN)
   @ApiOperation({ summary: 'Get current active engine' })
   @ApiResponse({ status: 200, description: 'Current engine info' })
+  @Mcp()
   getCurrentEngine(): { engineType: string } {
     return { engineType: this.engineFactory.getCurrentEngine() };
   }
@@ -243,6 +247,7 @@ export class InfraController {
   @RequireRole(ApiKeyRole.ADMIN)
   @ApiOperation({ summary: 'Read the saved infrastructure configuration for the dashboard form' })
   @ApiResponse({ status: 200, description: 'Saved configuration (secrets omitted)' })
+  @Mcp()
   getConfig(): SavedConfigResponse {
     const envPath = path.resolve(process.cwd(), 'data', '.env.generated');
     const saved: Record<string, string> = fs.existsSync(envPath) ? dotenv.parse(fs.readFileSync(envPath, 'utf8')) : {};
@@ -293,6 +298,7 @@ export class InfraController {
   @ApiOperation({ summary: 'Save infrastructure configuration to .env file' })
   @ApiResponse({ status: 200, description: 'Configuration saved' })
   @ApiBody({ description: 'Configuration to save' })
+  @Mcp()
   saveConfig(@Body() config: SaveConfigDto): { message: string; saved: boolean; envPath: string; profiles: string[] } {
     try {
       const profiles: string[] = [];
@@ -468,6 +474,7 @@ export class InfraController {
   @RequireRole(ApiKeyRole.ADMIN)
   @ApiOperation({ summary: 'Request server restart with Docker orchestration' })
   @ApiResponse({ status: 200, description: 'Server will restart with new profiles' })
+  @Mcp()
   async requestRestart(@Body() body?: { profiles?: string[]; profilesToRemove?: string[] }): Promise<{
     message: string;
     restarting: boolean;
@@ -560,6 +567,7 @@ export class InfraController {
   @Public()
   @ApiOperation({ summary: 'Health check endpoint' })
   @ApiResponse({ status: 200, description: 'Server is healthy' })
+  @Mcp()
   healthCheck(): { status: string; timestamp: string } {
     return {
       status: 'ok',
@@ -571,6 +579,7 @@ export class InfraController {
   @RequireRole(ApiKeyRole.ADMIN)
   @ApiOperation({ summary: 'Export all data from Data DB for migration' })
   @ApiResponse({ status: 200, description: 'Exported data as JSON' })
+  @Mcp()
   async exportData(): Promise<{
     exportedAt: string;
     dataDbType: string;
@@ -636,6 +645,7 @@ export class InfraController {
     },
   })
   @ApiResponse({ status: 200, description: 'Data imported successfully' })
+  @Mcp()
   async importData(
     @Body()
     data: {
@@ -805,6 +815,7 @@ export class InfraController {
   @RequireRole(ApiKeyRole.ADMIN)
   @ApiOperation({ summary: 'Get file count in current storage' })
   @ApiResponse({ status: 200, description: 'File count and size' })
+  @Mcp()
   async getStorageFileCount(): Promise<{
     storageType: string;
     count: number;
@@ -824,6 +835,7 @@ export class InfraController {
   @RequireRole(ApiKeyRole.ADMIN)
   @ApiOperation({ summary: 'Export all storage files as tar.gz' })
   @ApiResponse({ status: 200, description: 'Tar.gz archive stream' })
+  @Mcp()
   async exportStorage(): Promise<{ message: string; download: string }> {
     // Note: In production, this would return a StreamableFile
     // For simplicity, we'll save to a temp file and return the path
@@ -849,6 +861,7 @@ export class InfraController {
   @ApiOperation({ summary: 'Import storage files from tar.gz' })
   @ApiBody({ description: 'Path to tar.gz file to import' })
   @ApiResponse({ status: 200, description: 'Import result' })
+  @Mcp()
   async importStorage(
     @Body() body: { filePath: string },
   ): Promise<{ imported: boolean; count: number; storageType: string }> {

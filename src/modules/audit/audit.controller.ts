@@ -1,5 +1,6 @@
 import { Controller, Get, Query } from '@nestjs/common';
 import { ApiTags, ApiOperation, ApiResponse, ApiQuery } from '@nestjs/swagger';
+import { Mcp } from '@silkweave/nestjs';
 import { AuditService, AuditQueryOptions } from './audit.service';
 import { AuditLog, AuditAction, AuditSeverity } from './entities/audit-log.entity';
 
@@ -20,6 +21,7 @@ export class AuditController {
     status: 200,
     description: 'Paginated list of audit logs',
   })
+  @Mcp()
   async findAll(
     @Query('action') action?: AuditAction,
     @Query('severity') severity?: AuditSeverity,

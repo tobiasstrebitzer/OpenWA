@@ -1,5 +1,6 @@
 import { Controller, Post, Get, Param, Body, Query, HttpCode, HttpStatus } from '@nestjs/common';
 import { ApiTags, ApiOperation, ApiResponse, ApiParam, ApiQuery } from '@nestjs/swagger';
+import { Mcp } from '@silkweave/nestjs';
 import { MessageService } from './message.service';
 import { BulkMessageService } from './bulk-message.service';
 import { SendTextMessageDto, SendMediaMessageDto, MessageResponseDto } from './dto';
@@ -34,6 +35,7 @@ export class MessageController {
     status: 200,
     description: 'Message history',
   })
+  @Mcp()
   async getMessages(
     @Param('sessionId') sessionId: string,
     @Query('chatId') chatId?: string,
@@ -61,6 +63,7 @@ export class MessageController {
     description: 'Session not active or invalid request',
   })
   @ApiResponse({ status: 404, description: 'Session not found' })
+  @Mcp()
   async sendText(@Param('sessionId') sessionId: string, @Body() dto: SendTextMessageDto): Promise<MessageResponseDto> {
     return this.messageService.sendText(sessionId, dto);
   }
@@ -79,6 +82,7 @@ export class MessageController {
     description: 'Session not active or invalid request',
   })
   @ApiResponse({ status: 404, description: 'Session or template not found' })
+  @Mcp()
   async sendTemplate(
     @Param('sessionId') sessionId: string,
     @Body() dto: SendTemplateMessageDto,
@@ -99,6 +103,7 @@ export class MessageController {
     status: 400,
     description: 'Session not active or invalid request',
   })
+  @Mcp()
   async sendImage(
     @Param('sessionId') sessionId: string,
     @Body() dto: SendMediaMessageDto,
@@ -119,6 +124,7 @@ export class MessageController {
     status: 400,
     description: 'Session not active or invalid request',
   })
+  @Mcp()
   async sendVideo(
     @Param('sessionId') sessionId: string,
     @Body() dto: SendMediaMessageDto,
@@ -139,6 +145,7 @@ export class MessageController {
     status: 400,
     description: 'Session not active or invalid request',
   })
+  @Mcp()
   async sendAudio(
     @Param('sessionId') sessionId: string,
     @Body() dto: SendMediaMessageDto,
@@ -159,6 +166,7 @@ export class MessageController {
     status: 400,
     description: 'Session not active or invalid request',
   })
+  @Mcp()
   async sendDocument(
     @Param('sessionId') sessionId: string,
     @Body() dto: SendMediaMessageDto,
@@ -177,6 +185,7 @@ export class MessageController {
     description: 'Location sent',
     type: MessageResponseDto,
   })
+  @Mcp()
   async sendLocation(@Param('sessionId') sessionId: string, @Body() dto: SendLocationDto): Promise<MessageResponseDto> {
     return this.messageService.sendLocation(sessionId, dto);
   }
@@ -190,6 +199,7 @@ export class MessageController {
     description: 'Contact sent',
     type: MessageResponseDto,
   })
+  @Mcp()
   async sendContact(@Param('sessionId') sessionId: string, @Body() dto: SendContactDto): Promise<MessageResponseDto> {
     return this.messageService.sendContact(sessionId, dto);
   }
@@ -203,6 +213,7 @@ export class MessageController {
     description: 'Sticker sent',
     type: MessageResponseDto,
   })
+  @Mcp()
   async sendSticker(
     @Param('sessionId') sessionId: string,
     @Body() dto: SendMediaMessageDto,
@@ -219,6 +230,7 @@ export class MessageController {
     description: 'Reply sent',
     type: MessageResponseDto,
   })
+  @Mcp()
   async reply(@Param('sessionId') sessionId: string, @Body() dto: ReplyMessageDto): Promise<MessageResponseDto> {
     return this.messageService.reply(sessionId, dto);
   }
@@ -232,6 +244,7 @@ export class MessageController {
     description: 'Message forwarded',
     type: MessageResponseDto,
   })
+  @Mcp()
   async forward(@Param('sessionId') sessionId: string, @Body() dto: ForwardMessageDto): Promise<MessageResponseDto> {
     return this.messageService.forward(sessionId, dto);
   }
@@ -251,6 +264,7 @@ export class MessageController {
     status: 400,
     description: 'Session not active or message not found',
   })
+  @Mcp()
   async react(@Param('sessionId') sessionId: string, @Body() dto: ReactMessageDto): Promise<{ success: boolean }> {
     await this.messageService.reactToMessage(sessionId, dto);
     return { success: true };
@@ -273,6 +287,7 @@ export class MessageController {
     description: 'When true, downloads media (base64) for messages that have it. Slower; default false.',
   })
   @ApiResponse({ status: 200, description: 'Chat history (most recent messages)' })
+  @Mcp()
   async getChatHistory(
     @Param('sessionId') sessionId: string,
     @Param('chatId') chatId: string,
@@ -299,6 +314,7 @@ export class MessageController {
     status: 200,
     description: 'List of reactions with senders',
   })
+  @Mcp()
   async getReactions(
     @Param('sessionId') sessionId: string,
     @Param('chatId') chatId: string,
@@ -322,6 +338,7 @@ export class MessageController {
     status: 400,
     description: 'Session not active or message not found',
   })
+  @Mcp()
   async deleteMessage(
     @Param('sessionId') sessionId: string,
     @Body() dto: DeleteMessageDto,
@@ -346,6 +363,7 @@ export class MessageController {
     status: 400,
     description: 'Session not active or invalid request',
   })
+  @Mcp()
   async sendBulk(
     @Param('sessionId') sessionId: string,
     @Body() dto: SendBulkMessageDto,
@@ -374,6 +392,7 @@ export class MessageController {
     status: 404,
     description: 'Batch not found',
   })
+  @Mcp()
   async getBatchStatus(@Param('sessionId') sessionId: string, @Param('batchId') batchId: string) {
     const batch = await this.bulkMessageService.getBatchStatus(sessionId, batchId);
     return {
@@ -404,6 +423,7 @@ export class MessageController {
     status: 404,
     description: 'Batch not found',
   })
+  @Mcp()
   async cancelBatch(@Param('sessionId') sessionId: string, @Param('batchId') batchId: string) {
     const batch = await this.bulkMessageService.cancelBatch(sessionId, batchId);
     return {

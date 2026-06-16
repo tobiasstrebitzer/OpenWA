@@ -1,6 +1,7 @@
 import { Controller, Get, Put, Body } from '@nestjs/common';
 import { ApiTags, ApiOperation, ApiResponse } from '@nestjs/swagger';
 import { ConfigService } from '@nestjs/config';
+import { Mcp } from '@silkweave/nestjs';
 import { RequireRole } from '../auth/decorators/auth.decorators';
 import { ApiKeyRole } from '../auth/entities/api-key.entity';
 
@@ -55,6 +56,7 @@ export class SettingsController {
   @Get()
   @ApiOperation({ summary: 'Get application settings' })
   @ApiResponse({ status: 200, description: 'Current settings' })
+  @Mcp()
   get(): Settings {
     return this.settings;
   }
@@ -63,6 +65,7 @@ export class SettingsController {
   @RequireRole(ApiKeyRole.ADMIN)
   @ApiOperation({ summary: 'Update application settings' })
   @ApiResponse({ status: 200, description: 'Settings updated' })
+  @Mcp()
   update(@Body() newSettings: Partial<Settings>): Settings {
     if (newSettings.general) {
       this.settings.general = {

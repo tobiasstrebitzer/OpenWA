@@ -1,5 +1,6 @@
 import { Controller, Get, Post, Delete, Param, HttpCode, HttpStatus } from '@nestjs/common';
 import { ApiTags, ApiOperation, ApiResponse, ApiParam } from '@nestjs/swagger';
+import { Mcp } from '@silkweave/nestjs';
 import { ContactService } from './contact.service';
 
 @ApiTags('contacts')
@@ -16,6 +17,7 @@ export class ContactController {
   })
   @ApiResponse({ status: 400, description: 'Session not ready' })
   @ApiResponse({ status: 404, description: 'Session not found' })
+  @Mcp()
   async findAll(@Param('sessionId') sessionId: string) {
     return this.contactService.getContacts(sessionId);
   }
@@ -29,6 +31,7 @@ export class ContactController {
     description: 'Contact details',
   })
   @ApiResponse({ status: 404, description: 'Contact not found' })
+  @Mcp()
   async findOne(@Param('sessionId') sessionId: string, @Param('contactId') contactId: string) {
     return this.contactService.getContactById(sessionId, contactId);
   }
@@ -41,6 +44,7 @@ export class ContactController {
     status: 200,
     description: 'Number existence check result',
   })
+  @Mcp()
   async checkNumber(@Param('sessionId') sessionId: string, @Param('number') number: string) {
     const exists = await this.contactService.checkNumberExists(sessionId, number);
     return {
@@ -60,6 +64,7 @@ export class ContactController {
     status: 200,
     description: 'Profile picture URL',
   })
+  @Mcp()
   async getProfilePicture(@Param('sessionId') sessionId: string, @Param('contactId') contactId: string) {
     const url = await this.contactService.getProfilePicture(sessionId, contactId);
     return { url };
@@ -74,6 +79,7 @@ export class ContactController {
     status: 200,
     description: 'Contact blocked',
   })
+  @Mcp()
   async blockContact(@Param('sessionId') sessionId: string, @Param('contactId') contactId: string) {
     await this.contactService.blockContact(sessionId, contactId);
     return { success: true, message: 'Contact blocked' };
@@ -87,6 +93,7 @@ export class ContactController {
     status: 200,
     description: 'Contact unblocked',
   })
+  @Mcp()
   async unblockContact(@Param('sessionId') sessionId: string, @Param('contactId') contactId: string) {
     await this.contactService.unblockContact(sessionId, contactId);
     return { success: true, message: 'Contact unblocked' };

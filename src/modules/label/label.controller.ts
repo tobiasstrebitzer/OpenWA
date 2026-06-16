@@ -1,5 +1,6 @@
 import { Controller, Get, Post, Delete, Param, Body } from '@nestjs/common';
 import { ApiTags, ApiOperation, ApiResponse, ApiParam, ApiBody } from '@nestjs/swagger';
+import { Mcp } from '@silkweave/nestjs';
 import { LabelService } from './label.service';
 import { AddLabelDto } from './dto/add-label.dto';
 
@@ -17,6 +18,7 @@ export class LabelController {
   })
   @ApiResponse({ status: 400, description: 'Session not ready or not a business account' })
   @ApiResponse({ status: 404, description: 'Session not found' })
+  @Mcp()
   async findAll(@Param('sessionId') sessionId: string) {
     return this.labelService.getLabels(sessionId);
   }
@@ -30,6 +32,7 @@ export class LabelController {
     description: 'Label details',
   })
   @ApiResponse({ status: 404, description: 'Label not found' })
+  @Mcp()
   async findOne(@Param('sessionId') sessionId: string, @Param('labelId') labelId: string) {
     return this.labelService.getLabelById(sessionId, labelId);
   }
@@ -42,6 +45,7 @@ export class LabelController {
     status: 200,
     description: 'List of labels for the chat',
   })
+  @Mcp()
   async getChatLabels(@Param('sessionId') sessionId: string, @Param('chatId') chatId: string) {
     return this.labelService.getChatLabels(sessionId, chatId);
   }
@@ -63,6 +67,7 @@ export class LabelController {
     status: 200,
     description: 'Label added to chat',
   })
+  @Mcp()
   async addLabelToChat(
     @Param('sessionId') sessionId: string,
     @Param('chatId') chatId: string,
@@ -81,6 +86,7 @@ export class LabelController {
     status: 200,
     description: 'Label removed from chat',
   })
+  @Mcp()
   async removeLabelFromChat(
     @Param('sessionId') sessionId: string,
     @Param('chatId') chatId: string,

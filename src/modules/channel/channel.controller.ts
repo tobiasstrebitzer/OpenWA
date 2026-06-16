@@ -1,5 +1,6 @@
 import { Controller, Get, Post, Delete, Param, Body, Query } from '@nestjs/common';
 import { ApiTags, ApiOperation, ApiResponse, ApiParam, ApiBody, ApiQuery } from '@nestjs/swagger';
+import { Mcp } from '@silkweave/nestjs';
 import { ChannelService } from './channel.service';
 import { SubscribeChannelDto } from './dto/subscribe-channel.dto';
 
@@ -16,6 +17,7 @@ export class ChannelController {
     description: 'List of subscribed channels',
   })
   @ApiResponse({ status: 400, description: 'Session not ready' })
+  @Mcp()
   async findAll(@Param('sessionId') sessionId: string) {
     return this.channelService.getSubscribedChannels(sessionId);
   }
@@ -29,6 +31,7 @@ export class ChannelController {
     description: 'Channel details',
   })
   @ApiResponse({ status: 404, description: 'Channel not found' })
+  @Mcp()
   async findOne(@Param('sessionId') sessionId: string, @Param('channelId') channelId: string) {
     return this.channelService.getChannelById(sessionId, channelId);
   }
@@ -42,6 +45,7 @@ export class ChannelController {
     status: 200,
     description: 'List of channel messages',
   })
+  @Mcp()
   async getMessages(
     @Param('sessionId') sessionId: string,
     @Param('channelId') channelId: string,
@@ -70,6 +74,7 @@ export class ChannelController {
     status: 201,
     description: 'Successfully subscribed to channel',
   })
+  @Mcp()
   async subscribe(@Param('sessionId') sessionId: string, @Body() body: SubscribeChannelDto) {
     return this.channelService.subscribeToChannel(sessionId, body.inviteCode);
   }
@@ -82,6 +87,7 @@ export class ChannelController {
     status: 200,
     description: 'Successfully unsubscribed from channel',
   })
+  @Mcp()
   async unsubscribe(@Param('sessionId') sessionId: string, @Param('channelId') channelId: string) {
     await this.channelService.unsubscribeFromChannel(sessionId, channelId);
     return { success: true };

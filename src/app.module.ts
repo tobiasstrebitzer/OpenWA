@@ -29,6 +29,7 @@ import { CatalogModule } from './modules/catalog/catalog.module';
 import { HooksModule } from './core/hooks';
 import { PluginsModule } from './core/plugins';
 import { PluginsApiModule } from './modules/plugins/plugins.module';
+import { ApiKeyGuard } from './modules/auth/guards/api-key.guard';
 
 // Only import QueueModule if explicitly enabled to avoid Redis connection errors
 const queueModules: Array<Type | DynamicModule> = [];
@@ -38,6 +39,24 @@ if (process.env.QUEUE_ENABLED === 'true') {
     QueueModule: Type;
   };
   queueModules.push(queueModule.QueueModule);
+}
+
+// MCP is opt-in (off by default). Only when enabled do we load @silkweave/nestjs
+// and register the MCP adapter; it reflects @Mcp()-decorated controller routes
+// into MCP tools and mounts them at /mcp. `globalGuards: [ApiKeyGuard]` makes the
+// existing global API-key auth run on tool calls (the app-global APP_GUARDs are not
+// otherwise applied to Silkweave's raw routes). See @Mcp() usage in the controllers.
+const mcpModules: Array<Type | DynamicModule> = [];
+if (process.env.MCP_ENABLED === 'true') {
+  // eslint-disable-next-line @typescript-eslint/no-require-imports
+  const { SilkweaveModule, mcp } = require('@silkweave/nestjs') as typeof import('@silkweave/nestjs');
+  mcpModules.push(
+    SilkweaveModule.forRoot({
+      silkweave: { name: 'openwa', description: 'OpenWA — self-hosted WhatsApp HTTP API', version: '0.2.3' },
+      adapters: [mcp({ basePath: '/mcp' })],
+      globalGuards: [ApiKeyGuard],
+    }),
+  );
 }
 
 @Module({
@@ -186,6 +205,7 @@ if (process.env.QUEUE_ENABLED === 'true') {
     StatusModule, // Phase 3: Status/Stories API
     CatalogModule, // Phase 3: Catalog API (WhatsApp Business)
     PluginsApiModule, // Phase 5: Plugins API
+    ...mcpModules, // Opt-in MCP server (MCP_ENABLED=true) — additive, reflects @Mcp() routes
   ],
 })
 export class AppModule {}

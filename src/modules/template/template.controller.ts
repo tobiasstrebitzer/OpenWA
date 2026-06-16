@@ -5,6 +5,7 @@ import { CreateTemplateDto, UpdateTemplateDto, TemplateResponseDto } from './dto
 import { Template } from './entities/template.entity';
 import { RequireRole } from '../auth/decorators/auth.decorators';
 import { ApiKeyRole } from '../auth/entities/api-key.entity';
+import { Mcp } from '@silkweave/nestjs';
 
 @ApiTags('templates')
 @Controller('sessions/:sessionId/templates')
@@ -16,6 +17,7 @@ export class TemplateController {
   @ApiOperation({ summary: 'Create a message template for the session' })
   @ApiParam({ name: 'sessionId', description: 'Session ID' })
   @ApiResponse({ status: 201, description: 'Template created', type: TemplateResponseDto })
+  @Mcp()
   async create(@Param('sessionId') sessionId: string, @Body() dto: CreateTemplateDto): Promise<Template> {
     return this.templateService.create(sessionId, dto);
   }
@@ -25,6 +27,7 @@ export class TemplateController {
   @ApiOperation({ summary: 'List all templates for a session' })
   @ApiParam({ name: 'sessionId', description: 'Session ID' })
   @ApiResponse({ status: 200, description: 'List of templates', type: [TemplateResponseDto] })
+  @Mcp()
   async findBySession(@Param('sessionId') sessionId: string): Promise<Template[]> {
     return this.templateService.findBySession(sessionId);
   }
@@ -36,6 +39,7 @@ export class TemplateController {
   @ApiParam({ name: 'id', description: 'Template ID' })
   @ApiResponse({ status: 200, description: 'Template details', type: TemplateResponseDto })
   @ApiResponse({ status: 404, description: 'Template not found' })
+  @Mcp()
   async findOne(@Param('sessionId') sessionId: string, @Param('id') id: string): Promise<Template> {
     return this.templateService.findOne(sessionId, id);
   }
@@ -47,6 +51,7 @@ export class TemplateController {
   @ApiParam({ name: 'id', description: 'Template ID' })
   @ApiResponse({ status: 200, description: 'Template updated', type: TemplateResponseDto })
   @ApiResponse({ status: 404, description: 'Template not found' })
+  @Mcp()
   async update(
     @Param('sessionId') sessionId: string,
     @Param('id') id: string,
@@ -63,6 +68,7 @@ export class TemplateController {
   @ApiParam({ name: 'id', description: 'Template ID' })
   @ApiResponse({ status: 204, description: 'Template deleted' })
   @ApiResponse({ status: 404, description: 'Template not found' })
+  @Mcp()
   async delete(@Param('sessionId') sessionId: string, @Param('id') id: string): Promise<void> {
     return this.templateService.delete(sessionId, id);
   }

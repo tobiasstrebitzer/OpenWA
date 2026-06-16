@@ -1,5 +1,6 @@
 import { Controller, Get, Post, Delete, Param, Body, HttpCode, HttpStatus } from '@nestjs/common';
 import { ApiTags, ApiOperation, ApiResponse, ApiParam } from '@nestjs/swagger';
+import { Mcp } from '@silkweave/nestjs';
 import { SessionService } from './session.service';
 import {
   CreateSessionDto,
@@ -49,6 +50,7 @@ export class SessionController {
     type: SessionResponseDto,
   })
   @ApiResponse({ status: 409, description: 'Session name already exists' })
+  @Mcp()
   async create(@Body() dto: CreateSessionDto): Promise<Session> {
     const session = await this.sessionService.create(dto);
     await this.auditService.logInfo(AuditAction.SESSION_CREATED, {
@@ -65,6 +67,7 @@ export class SessionController {
     description: 'List of sessions',
     type: [SessionResponseDto],
   })
+  @Mcp()
   async findAll(): Promise<SessionResponseDto[]> {
     const sessions = await this.sessionService.findAll();
     return sessions.map(s => this.transformSession(s));
@@ -79,6 +82,7 @@ export class SessionController {
     type: SessionResponseDto,
   })
   @ApiResponse({ status: 404, description: 'Session not found' })
+  @Mcp()
   async findOne(@Param('id') id: string): Promise<SessionResponseDto> {
     const session = await this.sessionService.findOne(id);
     return this.transformSession(session);
@@ -91,6 +95,7 @@ export class SessionController {
   @ApiParam({ name: 'id', description: 'Session ID' })
   @ApiResponse({ status: 204, description: 'Session deleted' })
   @ApiResponse({ status: 404, description: 'Session not found' })
+  @Mcp()
   async delete(@Param('id') id: string): Promise<void> {
     const session = await this.sessionService.findOne(id);
     await this.sessionService.delete(id);
@@ -113,6 +118,7 @@ export class SessionController {
   })
   @ApiResponse({ status: 400, description: 'Session already started' })
   @ApiResponse({ status: 404, description: 'Session not found' })
+  @Mcp()
   async start(@Param('id') id: string): Promise<SessionResponseDto> {
     const session = await this.sessionService.start(id);
     await this.auditService.logInfo(AuditAction.SESSION_STARTED, {
@@ -132,6 +138,7 @@ export class SessionController {
     type: SessionResponseDto,
   })
   @ApiResponse({ status: 404, description: 'Session not found' })
+  @Mcp()
   async stop(@Param('id') id: string): Promise<SessionResponseDto> {
     const session = await this.sessionService.stop(id);
     await this.auditService.logInfo(AuditAction.SESSION_STOPPED, {
@@ -155,6 +162,7 @@ export class SessionController {
     description: 'QR code not ready or session already authenticated',
   })
   @ApiResponse({ status: 404, description: 'Session not found' })
+  @Mcp()
   async getQRCode(@Param('id') id: string): Promise<QRCodeResponseDto> {
     const qrCode = await this.sessionService.getQRCode(id);
     await this.auditService.logInfo(AuditAction.SESSION_QR_GENERATED, {
@@ -186,6 +194,7 @@ export class SessionController {
   })
   @ApiResponse({ status: 400, description: 'Session not ready' })
   @ApiResponse({ status: 404, description: 'Session not found' })
+  @Mcp()
   async getGroups(@Param('id') id: string): Promise<{ id: string; name: string; linkedParentJID?: string | null }[]> {
     return this.sessionService.getGroups(id);
   }
@@ -196,6 +205,7 @@ export class SessionController {
   @ApiResponse({ status: 200, description: 'List of active chats' })
   @ApiResponse({ status: 400, description: 'Session not ready' })
   @ApiResponse({ status: 404, description: 'Session not found' })
+  @Mcp()
   async getChats(@Param('id') id: string): Promise<ChatSummary[]> {
     return this.sessionService.getChats(id);
   }
@@ -207,6 +217,7 @@ export class SessionController {
   @ApiResponse({ status: 200, description: 'Chat marked as read successfully' })
   @ApiResponse({ status: 400, description: 'Session not ready' })
   @ApiResponse({ status: 404, description: 'Session not found' })
+  @Mcp()
   async markChatRead(@Param('id') id: string, @Body() dto: MarkChatReadDto): Promise<{ success: boolean }> {
     const success = await this.sessionService.sendSeen(id, dto.chatId);
     return { success };
@@ -220,6 +231,7 @@ export class SessionController {
     status: 200,
     description: 'Session statistics including counts and memory usage',
   })
+  @Mcp()
   async getStats(): Promise<{
     total: number;
     active: number;
