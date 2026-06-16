@@ -7,6 +7,7 @@ import { InjectDataSource } from '@nestjs/typeorm';
 import { Public, RequireRole } from '../auth/decorators/auth.decorators';
 import { ApiKeyRole } from '../auth/entities/api-key.entity';
 import { isPathWithin } from '../../common/utils/path-safety';
+import { updateGeneratedEnv } from '../../common/utils/env-file';
 import { EngineFactory } from '../../engine/engine.factory';
 import { DockerService } from '../docker';
 import { CacheService } from '../../common/cache/cache.service';
@@ -303,13 +304,9 @@ export class InfraController {
     try {
       const profiles: string[] = [];
 
-      // Merge into the existing saved config rather than rebuilding from scratch, so a
-      // partial payload (the dashboard only sends the sections it renders) cannot wipe
-      // keys it didn't include (#226).
-      const envPath = path.resolve(process.cwd(), 'data', '.env.generated');
-      const existing: Record<string, string> = fs.existsSync(envPath)
-        ? dotenv.parse(fs.readFileSync(envPath, 'utf8'))
-        : {};
+      // updateGeneratedEnv merges into the existing saved config rather than rebuilding
+      // from scratch, so a partial payload (the dashboard only sends the sections it
+      // renders) cannot wipe keys it didn't include (#226).
       const updates: Record<string, string> = {};
       // Keys to remove from the merged result — used to drop stale settings when the
       // user switches mode (postgres->sqlite, s3->local) so a reload never sees the new
@@ -432,25 +429,9 @@ export class InfraController {
       }
 
       // Existing values are the base; this payload's values win (secrets handled above).
-      const merged: Record<string, string> = { ...existing, ...updates };
-      // Drop keys made obsolete by a mode switch (postgres->sqlite, s3->local).
-      for (const k of staleKeys) {
-        delete merged[k];
-      }
-      const body = Object.keys(merged)
-        .sort()
-        .map(key => `${key}=${merged[key]}`);
-      const contents = [
-        '# OpenWA Configuration',
-        `# Generated at ${new Date().toISOString()}`,
-        '# Managed via Dashboard > Infrastructure. Values in process env or project .env take precedence.',
-        '',
-        ...body,
-        '',
-      ].join('\n');
-
-      // Write to data/ so it persists across container restarts.
-      fs.writeFileSync(envPath, contents, 'utf8');
+      // staleKeys drop settings made obsolete by a mode switch (postgres->sqlite,
+      // s3->local) so a reload never sees the new mode alongside leftover keys.
+      const envPath = updateGeneratedEnv(updates, staleKeys);
       this.logger.log('Configuration saved', { envPath });
 
       const profileMsg = profiles.length > 0 ? ` Docker profiles required: ${profiles.join(', ')}.` : '';
