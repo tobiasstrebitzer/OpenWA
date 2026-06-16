@@ -7,6 +7,7 @@ import {
   SessionResponseDto,
   QRCodeResponseDto,
   MarkChatReadDto,
+  DeleteChatDto,
   RequestPairingCodeDto,
   PairingCodeResponseDto,
 } from './dto';
@@ -220,6 +221,19 @@ export class SessionController {
   @Mcp()
   async markChatRead(@Param('id') id: string, @Body() dto: MarkChatReadDto): Promise<{ success: boolean }> {
     const success = await this.sessionService.sendSeen(id, dto.chatId);
+    return { success };
+  }
+
+  @Mcp()
+  @Post(':id/chats/delete')
+  @RequireRole(ApiKeyRole.OPERATOR)
+  @ApiOperation({ summary: 'Delete a chat from the chat list (e.g. a group you have left)' })
+  @ApiParam({ name: 'id', description: 'Session ID' })
+  @ApiResponse({ status: 200, description: 'Chat deleted successfully' })
+  @ApiResponse({ status: 400, description: 'Session not ready' })
+  @ApiResponse({ status: 404, description: 'Session not found' })
+  async deleteChat(@Param('id') id: string, @Body() dto: DeleteChatDto): Promise<{ success: boolean }> {
+    const success = await this.sessionService.deleteChat(id, dto.chatId);
     return { success };
   }
 
