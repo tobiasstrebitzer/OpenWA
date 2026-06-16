@@ -530,6 +530,8 @@
     "disable": "Disable",
     "healthCheck": "Health Check",
     "configure": "Configure",
+    "copyUrl": "Copy URL",
+    "copied": "Copied to clipboard",
     "empty": {
       "title": "No Plugins Found",
       "description": "Install plugins to extend OpenWA functionality"
@@ -543,7 +545,8 @@
       "sessionDataPath": "Session Data Path",
       "browserArgs": "Browser Arguments",
       "noOptions": "No configuration options available for this plugin",
-      "save": "Save Configuration"
+      "save": "Save Configuration",
+      "authNote": "Authentication: set Bearer or X-Api-Key Header"
     },
     "toasts": {
       "errorTitle": "Plugin Error",

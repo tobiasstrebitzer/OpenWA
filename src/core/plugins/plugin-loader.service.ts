@@ -14,6 +14,7 @@ import {
   PluginLogger,
 } from './plugin.interfaces';
 import { PluginStorageService } from './plugin-storage.service';
+import { mcpPluginManifest, McpBuiltinPlugin } from './builtin/mcp.plugin';
 
 /**
  * Resolve a plugin's `main` entry to an absolute path, asserting it stays inside
@@ -59,9 +60,12 @@ export class PluginLoaderService implements OnModuleInit {
   }
 
   private loadBuiltInPlugins(): void {
-    // Built-in plugins are registered programmatically
-    // This will be used by Phase 4 to register engine plugins
-    this.logger.debug('Built-in plugins loading point (Phase 4)', {
+    const mcpEnabled = process.env.MCP_ENABLED === 'true';
+    this.registerBuiltInPlugin(mcpPluginManifest, new McpBuiltinPlugin(), {
+      status: mcpEnabled ? PluginStatus.ENABLED : PluginStatus.DISABLED,
+    });
+
+    this.logger.debug('Built-in plugins loaded', {
       action: 'builtin_plugins_init',
     });
   }
@@ -336,19 +340,22 @@ export class PluginLoaderService implements OnModuleInit {
   // Built-in Plugin Registration (for Phase 4)
   // ============================================================================
 
-  registerBuiltInPlugin(manifest: PluginManifest, instance: IPlugin): void {
+  registerBuiltInPlugin(manifest: PluginManifest, instance: IPlugin, options: { status?: PluginStatus } = {}): void {
+    const status = options.status ?? PluginStatus.INSTALLED;
     const pluginInstance: PluginInstance = {
       manifest,
-      status: PluginStatus.INSTALLED,
+      status,
       config: {},
       instance,
       loadedAt: new Date(),
+      enabledAt: status === PluginStatus.ENABLED ? new Date() : undefined,
     };
 
     this.plugins.set(manifest.id, pluginInstance);
 
     this.logger.debug(`Built-in plugin registered: ${manifest.name}`, {
       pluginId: manifest.id,
+      status,
       action: 'builtin_plugin_registered',
     });
   }

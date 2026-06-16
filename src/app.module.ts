@@ -41,11 +41,6 @@ if (process.env.QUEUE_ENABLED === 'true') {
   queueModules.push(queueModule.QueueModule);
 }
 
-// MCP is opt-in (off by default). Only when enabled do we load @silkweave/nestjs
-// and register the MCP adapter; it reflects @Mcp()-decorated controller routes
-// into MCP tools and mounts them at /mcp. `globalGuards: [ApiKeyGuard]` makes the
-// existing global API-key auth run on tool calls (the app-global APP_GUARDs are not
-// otherwise applied to Silkweave's raw routes). See @Mcp() usage in the controllers.
 const mcpModules: Array<Type | DynamicModule> = [];
 if (process.env.MCP_ENABLED === 'true') {
   // eslint-disable-next-line @typescript-eslint/no-require-imports
@@ -55,6 +50,7 @@ if (process.env.MCP_ENABLED === 'true') {
       silkweave: { name: 'openwa', description: 'OpenWA — self-hosted WhatsApp HTTP API', version: '0.2.3' },
       adapters: [mcp({ basePath: '/mcp' })],
       globalGuards: [ApiKeyGuard],
+      defaultResult: 'json',
     }),
   );
 }

@@ -49,6 +49,10 @@ export interface PluginManifest {
   // Configuration schema (optional, for UI generation)
   configSchema?: PluginConfigSchema;
 
+  // When true, the dashboard prompts to restart the server after enabling/disabling
+  // or changing config (for plugins wired at boot that Nest can't hot-reload).
+  requiresRestart?: boolean;
+
   // Hooks this plugin listens to
   hooks?: HookEvent[];
 

@@ -1,5 +1,5 @@
 import { Injectable, NotFoundException } from '@nestjs/common';
-import { PluginLoaderService, PluginStatus } from '../../core/plugins';
+import { PluginLoaderService, PluginStatus, PluginType, BUILTIN_PLUGIN_IDS } from '../../core/plugins';
 import { PluginDto } from './dto/plugin.dto';
 
 @Injectable()
@@ -7,7 +7,11 @@ export class PluginsService {
   constructor(private readonly pluginLoader: PluginLoaderService) {}
 
   findAll(): PluginDto[] {
-    const plugins = this.pluginLoader.getAllPlugins();
+    // Engines lead the list (the dashboard treats the active engine as primary);
+    // everything else (e.g. the MCP plugin) follows in registration order.
+    const plugins = [...this.pluginLoader.getAllPlugins()].sort(
+      (a, b) => Number(b.manifest.type === PluginType.ENGINE) - Number(a.manifest.type === PluginType.ENGINE),
+    );
 
     return plugins.map(plugin => ({
       id: plugin.manifest.id,
@@ -18,9 +22,10 @@ export class PluginsService {
       author: plugin.manifest.author,
       status: plugin.status,
       config: plugin.config,
-      builtIn: plugin.manifest.id === 'whatsapp-web.js', // Built-in engines
+      builtIn: BUILTIN_PLUGIN_IDS.includes(plugin.manifest.id),
       provides: plugin.manifest.provides ?? [],
       configSchema: plugin.manifest.configSchema,
+      requiresRestart: plugin.manifest.requiresRestart ?? false,
       loadedAt: plugin.loadedAt?.toISOString(),
       enabledAt: plugin.enabledAt?.toISOString(),
       error: plugin.error,
@@ -43,9 +48,10 @@ export class PluginsService {
       author: plugin.manifest.author,
       status: plugin.status,
       config: plugin.config,
-      builtIn: plugin.manifest.id === 'whatsapp-web.js',
+      builtIn: BUILTIN_PLUGIN_IDS.includes(plugin.manifest.id),
       provides: plugin.manifest.provides ?? [],
       configSchema: plugin.manifest.configSchema,
+      requiresRestart: plugin.manifest.requiresRestart ?? false,
       loadedAt: plugin.loadedAt?.toISOString(),
       enabledAt: plugin.enabledAt?.toISOString(),
       error: plugin.error,

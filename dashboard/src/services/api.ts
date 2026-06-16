@@ -480,6 +480,7 @@ export interface Plugin {
   author?: string;
   status: 'installed' | 'enabled' | 'disabled' | 'error';
   config: Record<string, unknown>;
+  requiresRestart?: boolean;
   builtIn: boolean;
   provides: string[];
   loadedAt?: string;

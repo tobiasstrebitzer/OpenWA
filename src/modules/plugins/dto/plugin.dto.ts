@@ -37,6 +37,9 @@ export class PluginDto {
   @ApiPropertyOptional({ description: 'Configuration schema' })
   configSchema?: PluginConfigSchema;
 
+  @ApiPropertyOptional({ description: 'Whether changes require a server restart to take effect' })
+  requiresRestart?: boolean;
+
   @ApiPropertyOptional({ description: 'When the plugin was loaded' })
   loadedAt?: string;
 

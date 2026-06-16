@@ -530,6 +530,8 @@
     "disable": "تعطيل",
     "healthCheck": "فحص الصحة",
     "configure": "إعداد",
+    "copyUrl": "نسخ الرابط",
+    "copied": "تم النسخ إلى الحافظة",
     "empty": {
       "title": "لم يتم العثور على إضافات",
       "description": "ثبّت إضافات لتوسيع وظائف OpenWA"
@@ -543,7 +545,8 @@
       "sessionDataPath": "مسار بيانات الجلسة",
       "browserArgs": "مُعطيات المتصفح",
       "noOptions": "لا توجد خيارات إعداد لهذه الإضافة",
-      "save": "حفظ الإعدادات"
+      "save": "حفظ الإعدادات",
+      "authNote": "المصادقة: عيّن ترويسة Bearer أو X-Api-Key"
     },
     "toasts": {
       "errorTitle": "خطأ في الإضافة",
