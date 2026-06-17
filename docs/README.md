@@ -83,7 +83,7 @@ Access:
 - Swagger: `http://localhost:2785/api/docs`
 - Health: `http://localhost:2785/api/health`
 
-### Option B: Docker (Traefik + API + Dashboard)
+### Option B: Docker (single container: API + Dashboard)
 
 ```bash
 # Clone repository
@@ -94,12 +94,11 @@ cd OpenWA
 docker compose up -d
 ```
 
-Access:
+Access (the dashboard is bundled into the API and served on the same port):
 
-- Dashboard: `http://localhost:2886`
+- Dashboard: `http://localhost:2785`
 - API: `http://localhost:2785/api`
 - Swagger: `http://localhost:2785/api/docs`
-- Traefik (optional): `http://localhost:2886/api`
 
 ### API Key
 
@@ -173,7 +172,7 @@ socket.on('message', msg => {
 | WebSocket Events (Socket.IO)    | Ready                         |
 | Multi-session Support           | Ready                         |
 | Web Dashboard                   | Ready                         |
-| Docker + Traefik Deployment     | Ready                         |
+| Docker Deployment               | Ready                         |
 | Webhooks with HMAC Signature    | Ready                         |
 | SQLite / PostgreSQL Storage     | Ready                         |
 | API Key Authentication & Roles  | Ready                         |
@@ -204,7 +203,7 @@ socket.on('message', msg => {
 OpenWA/
 ├── src/                    # Backend source code
 ├── dashboard/              # Frontend dashboard
-├── docker-compose.yml      # Traefik + API + Dashboard
+├── docker-compose.yml      # API (serves bundled dashboard) + optional datastores
 ├── docker-compose.dev.yml  # Dev-only compose
 ├── docs/                  # Project documentation
 └── data/                   # Local runtime data (sessions, media, api key)

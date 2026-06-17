@@ -142,15 +142,8 @@ services:
     ports:
       - "6379:6379"
 
-  dashboard:
-    build:
-      context: ./dashboard
-    ports:
-      - "2886:2886"
-    environment:
-      - VITE_API_URL=http://localhost:2785
-    depends_on:
-      - app
+  # No separate dashboard service: the `app` image bundles the dashboard SPA and serves it
+  # from the same port (2785) via NestJS. Open http://localhost:2785 for the UI.
 
 volumes:
   postgres-data:
