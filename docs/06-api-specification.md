@@ -886,7 +886,7 @@ GET /api/sessions/:sessionId/chats/:chatId/messages
     "from": "628123456789@c.us",
     "to": "628987654321@c.us",
     "body": "Hello!",
-    "type": "chat",
+    "type": "text",
     "waTimestamp": 1706868000,
     "timestamp": "2025-02-02T10:00:00.000Z",
     "fromMe": false,
@@ -1073,10 +1073,16 @@ GET /api/sessions/:sessionId/contacts/check/:phone
 **Response (200 OK):**
 ```json
 {
+  "number": "628123456789",
   "exists": true,
-  "chatId": "628123456789@c.us"
+  "whatsappId": "628123456789@c.us"
 }
 ```
+
+> `whatsappId` is the engine's canonical WhatsApp ID for the number (and `null`
+> when `exists` is `false`). It is resolved by the engine, so it may be
+> normalized and differ from the submitted number's `@c.us` form (e.g. a `@lid`
+> identifier) — use it verbatim as the chat target rather than rebuilding it.
 
 ---
 
@@ -1092,6 +1098,30 @@ GET /api/sessions/:sessionId/contacts/:contactId/profile-picture
   "url": "https://pps.whatsapp.net/..."
 }
 ```
+
+#### Resolve a contact id to a phone number
+
+Resolve a contact identified by a WhatsApp privacy id (`@lid`) to its phone number. Pass the `@lid`
+JID as `:contactId`.
+
+```http
+GET /api/sessions/:sessionId/contacts/:contactId/phone
+```
+
+**Response (200 OK):**
+```json
+{
+  "contactId": "123456789@lid",
+  "phone": "628123456789"
+}
+```
+
+> **Best-effort.** `phone` is MSISDN digits when the account knows the mapping, or `null` otherwise —
+> `@lid` exists specifically to hide phone numbers, so a stranger you've never interacted with (or a
+> privacy-protected sender) won't resolve. This is a WhatsApp-engine limitation, not an OpenWA one.
+
+To get this resolved automatically on each incoming message instead of calling the endpoint, see
+`RESOLVE_LID_TO_PHONE` under [message.received](#messagereceived).
 
 ---
 
@@ -1286,14 +1316,16 @@ OpenWA provides an idempotency mechanism to prevent duplicate processing on the 
 #### Idempotency Key Format
 
 ```
-Format: {event_type}_{unique_identifier}_{timestamp}
+Keys are content-based and do NOT include a timestamp, so a replayed/retried event with an
+identical payload produces the same key for correct de-duplication.
 
 Examples:
-- message.received: msg_{messageId}_{timestamp}
-- message.sent: msg_{messageId}_{timestamp}
-- message.ack: ack_{messageId}_{ackLevel}_{timestamp}
-- session.status: sess_{sessionId}_{status}_{timestamp}
-- group.join: grp_{groupId}_{participantId}_{timestamp}
+- message.received: msg_{sessionId}_{messageId}
+- message.sent: msg_{sessionId}_{messageId}
+- message.ack: ack_{sessionId}_{messageId}_{status}
+- message.failed: failed_{sessionId}_{messageId}_{status}
+- session.status: sess_{sessionId}_{status}
+- group.join: grp_{groupId}_{participantId}_join
 ```
 
 #### Client-Side Idempotency Implementation
@@ -1434,7 +1466,7 @@ flowchart TB
     "from": "628123456789@c.us",
     "to": "628987654321@c.us",
     "body": "Hello!",
-    "type": "chat",
+    "type": "text",
     "waTimestamp": 1706868000,
     "timestamp": "2025-02-02T10:00:00.000Z",
     "isGroup": false,
@@ -1447,6 +1479,12 @@ flowchart TB
 }
 ```
 
+> **Optional `senderPhone` (`@lid` resolution).** When a sender is identified by a WhatsApp privacy id
+> (`from`/`author` ends in `@lid`) and `RESOLVE_LID_TO_PHONE=true` is set, the payload also carries a
+> best-effort `senderPhone` (MSISDN digits, or `null` when the engine can't map it). Off by default
+> because it adds a per-sender lookup (results are cached). See also the on-demand
+> [resolve endpoint](#resolve-a-contact-id-to-a-phone-number). (#263)
+
 ### message.ack
 
 ```json
@@ -1455,21 +1493,25 @@ flowchart TB
   "timestamp": "2025-02-02T10:00:00.000Z",
   "sessionId": "sess_abc123",
   "data": {
+    "id": "true_628123456789@c.us_3EB0ABC123",
     "messageId": "true_628123456789@c.us_3EB0ABC123",
-    "ack": 3,
-    "ackName": "read"
+    "status": "read",
+    "ack": 3
   }
 }
 ```
 
-| Ack | Name | Description |
-|-----|------|-------------|
-| 0 | error | Error |
-| 1 | pending | Pending |
-| 2 | sent | Sent to server |
-| 3 | delivered | Delivered |
-| 4 | read | Read |
-| 5 | played | Played (audio) |
+Read the engine-neutral **`status`** field — it is the canonical delivery state and is identical
+across engines. The legacy **`ack`** integer is **deprecated**, derived from `status` for backward
+compatibility only (a non-whatsapp-web.js engine still reports the same `status`).
+
+| `status` | `ack` (deprecated) | Description |
+|----------|--------------------|-------------|
+| `pending` | 0 | Queued, not yet sent to the server |
+| `sent` | 1 | Sent to the server |
+| `delivered` | 2 | Delivered to the recipient's device |
+| `read` | 3 | Read by the recipient (a played voice/video note also reports `read`) |
+| `failed` | -1 | Delivery failed (also dispatched as a separate `message.failed` event) |
 
 ### session.status
 

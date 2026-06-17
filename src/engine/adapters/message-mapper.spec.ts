@@ -1,4 +1,4 @@
-import { buildIncomingMessageBase, RawMessageFields } from './message-mapper';
+import { buildIncomingMessageBase, mapWwebjsMessageType, RawMessageFields } from './message-mapper';
 
 describe('buildIncomingMessageBase', () => {
   const base: RawMessageFields = {
@@ -11,13 +11,36 @@ describe('buildIncomingMessageBase', () => {
     fromMe: false,
   };
 
-  it('maps the core fields and flags 1:1 chats as non-group', () => {
+  it('maps the core fields, neutralizes the type (chat -> text), and flags 1:1 chats as non-group', () => {
     const r = buildIncomingMessageBase(base);
     expect(r.id).toBe('MSG1');
     expect(r.chatId).toBe('123@c.us');
+    expect(r.type).toBe('text'); // wwebjs 'chat' is neutralized to 'text'
     expect(r.isGroup).toBe(false);
+    expect(r.isStatusBroadcast).toBe(false);
     expect(r.author).toBeUndefined();
     expect(r.contact).toBeUndefined();
+    expect(r.isLidSender).toBeUndefined(); // a normal @c.us sender is not flagged
+  });
+
+  it('flags a 1:1 sender identified by an @lid privacy id (#263)', () => {
+    const r = buildIncomingMessageBase({ ...base, from: '111@lid' });
+    expect(r.isLidSender).toBe(true);
+  });
+
+  it('flags an @lid group participant via author, not the group JID (#263)', () => {
+    const r = buildIncomingMessageBase({ ...base, from: 'group-1@g.us', author: '222@lid' });
+    expect(r.isLidSender).toBe(true);
+  });
+
+  it('does not flag a group whose participant is a normal number', () => {
+    const r = buildIncomingMessageBase({ ...base, from: 'group-1@g.us', author: '456@c.us' });
+    expect(r.isLidSender).toBeUndefined();
+  });
+
+  it('flags a status/story broadcast via isStatusBroadcast (engine pseudo-JID stays in the adapter)', () => {
+    const r = buildIncomingMessageBase({ ...base, fromMe: true, from: 'me@c.us', to: 'status@broadcast' });
+    expect(r.isStatusBroadcast).toBe(true);
   });
 
   it('includes author and pushName for a group message', () => {
@@ -48,5 +71,24 @@ describe('buildIncomingMessageBase', () => {
     const r = buildIncomingMessageBase({ ...base, fromMe: true, from: 'me@c.us', to: 'group-1@g.us' });
     expect(r.chatId).toBe('group-1@g.us');
     expect(r.isGroup).toBe(true);
+  });
+});
+
+describe('mapWwebjsMessageType (engine type-token -> neutral MessageType boundary, #265)', () => {
+  it.each([
+    ['chat', 'text'],
+    ['ptt', 'voice'],
+    ['image', 'image'],
+    ['video', 'video'],
+    ['audio', 'audio'],
+    ['document', 'document'],
+    ['sticker', 'sticker'],
+    ['location', 'location'],
+    ['vcard', 'contact'],
+    ['multi_vcard', 'contact'],
+    ['revoked', 'revoked'],
+    ['e2e_notification', 'unknown'], // any unmapped wwebjs type
+  ])('maps wwebjs type %s -> %s', (raw, expected) => {
+    expect(mapWwebjsMessageType(raw)).toBe(expected);
   });
 });

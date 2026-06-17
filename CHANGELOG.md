@@ -5,6 +5,69 @@ All notable changes to this project will be documented in this file.
 The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.0.0/),
 and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
 
+## [0.2.8] - 2026-06-17
+
+The engine-pluggability release: the whatsapp-web.js delivery-ack, message-type, and JID specifics are
+now decoupled behind the neutral engine interface (a different engine, e.g. Baileys, can map its own at
+the adapter boundary). Plus dashboard message templates, best-effort `@lid` → phone resolution, and a
+Docker fix for sessions stuck at "authenticating".
+
+> ⚠️ **Breaking for webhook consumers:** the `message.received`/`message.sent` `type` field is now a
+> neutral enum — incoming `chat` → `text`, `ptt` → `voice`, `vcard`/`multi_vcard` → `contact`. Update
+> any consumer that matched the raw whatsapp-web.js tokens. See **Changed** below.
+
+### Added
+
+- **Message templates (dashboard).** Manage reusable message templates from a new dashboard page
+  (create/edit/delete, `{{variable}}` placeholders), backed by the existing `sessions/:id/templates`
+  API, with full i18n across all locales. Thanks @Leslie-23 (#266).
+- **Resolve a `@lid` privacy id to a phone number** (#263), engine-neutral via a new
+  `IWhatsAppEngine.resolveContactPhone`. On-demand endpoint `GET /sessions/:id/contacts/:contactId/phone`
+  → `{ contactId, phone }` (MSISDN digits, or `null` when the engine can't map it — best-effort, since
+  `@lid` exists to hide numbers). Optional **inline** resolution: set `RESOLVE_LID_TO_PHONE=true` to attach
+  a best-effort `senderPhone` to the `message.received` webhook + websocket payload for `@lid` senders
+  (off by default; per-sender lookups are cached). A non-whatsapp-web.js engine implements its own mapping.
+
+### Changed
+
+- **Message delivery status is now engine-agnostic** (engine-pluggability decoupling, #265). The raw whatsapp-web.js
+  ack integer no longer leaks past the engine adapter — a neutral `DeliveryStatus`
+  (`pending`/`sent`/`delivered`/`read`/`failed`) flows through the interface, services, webhooks, websocket, and
+  dashboard, so a non-whatsapp-web.js engine (e.g. Baileys) can map its own delivery codes at the adapter boundary.
+  - The `message.ack`/`message.failed` webhooks now include a neutral **`status`** field. The legacy **`ack`** integer
+    is **kept (deprecated)** for backward compatibility — new consumers should read `status`.
+  - Dashboard chat delivery ticks now update **live** over the websocket (the ack push was previously never emitted).
+  - Minor deprecated-surface deltas: the legacy webhook `ack` reports `3` (not `4`) for a "played" voice/video receipt,
+    and a play-after-read no longer emits a second `message.ack` (both map to `status: 'read'`).
+- **Message `type` is now an engine-neutral enum** (engine-pluggability decoupling, #265). Raw whatsapp-web.js
+  message-type tokens no longer leak past the engine adapter — incoming live/history messages, persisted rows, and the
+  `message.received`/`message.sent` webhooks now use a neutral `MessageType`
+  (`text`/`image`/`video`/`audio`/`voice`/`document`/`sticker`/`location`/`contact`/`revoked`/`unknown`), consistent with
+  outgoing sends. A non-whatsapp-web.js engine maps its own tokens at the adapter boundary.
+  - **Webhook contract change** (both `message.received` and `message.sent`): incoming `type` was previously raw — e.g.
+    `chat` → **`text`**, `ptt` → **`voice`**, `vcard` → **`contact`**. New consumers should expect the neutral enum.
+  - An idempotent startup backfill rewrites existing `messages.type` rows to the neutral vocabulary (runs in every DB
+    mode, including the zero-config SQLite default where data migrations don't), so historical chats render correctly
+    and message-type stats don't split the same kind across old/new tokens.
+  - Fixes a latent dashboard bug where incoming text (`chat`) was mis-styled as media and shown as `[chat]` in reply previews.
+- **JID construction moved into the engine** (engine-pluggability decoupling, #265). The check-number endpoint
+  (`GET /sessions/:id/contacts/check/:number`) now returns the engine's canonical chat id via a new
+  `IWhatsAppEngine.getNumberId(number)` instead of the controller hand-building a `…@c.us` JID. As a result the
+  returned `whatsappId` is the engine-resolved id and may be normalized — it can differ from the submitted number's
+  `…@c.us` form (e.g. a `@lid` identifier) rather than echoing the input. And status/story
+  broadcasts are flagged with a neutral `isStatusBroadcast` on the message payload, so engine-neutral code no longer
+  matches the engine-specific `status@broadcast` pseudo-JID. A non-whatsapp-web.js engine supplies its own JID scheme.
+
+### Fixed
+
+- The `WWEBJS_WEB_VERSION` (and `WWEBJS_WEB_VERSION_REMOTE_PATH`) workaround for sessions stuck at
+  "authenticating" (#251) is now actually passed through by the Docker Compose files. The `environment:`
+  blocks enumerate vars explicitly with no `env_file`, so setting `WWEBJS_WEB_VERSION` in `.env` previously
+  never reached the container — making the documented fix a no-op for Compose users. Added the passthrough
+  (empty default = auto-select, no behavior change when unset) to `docker-compose.yml` and
+  `docker-compose.dev.yml`. (#273)
+- Refined the Italian (`it`) dashboard translations. Thanks @albanobattistella (#272).
+
 ## [0.2.7] - 2026-06-16
 
 A feature + fix release: typing simulation (anti-ban, on by default), a delete-chat endpoint, and a fix

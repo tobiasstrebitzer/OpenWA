@@ -28,6 +28,7 @@ import {
   PaginatedProducts,
   ChatSummary,
   ChatState,
+  DeliveryStatus,
   RevokedMessage,
   ReactionEvent,
 } from '../interfaces/whatsapp-engine.interface';
@@ -52,6 +53,19 @@ const DEFAULT_MEDIA_TIMEOUT_MS = 30_000;
 function positiveIntFromEnv(name: string, fallback: number): number {
   const parsed = Number.parseInt(process.env[name] ?? '', 10);
   return Number.isInteger(parsed) && parsed > 0 ? parsed : fallback;
+}
+
+/**
+ * Map a whatsapp-web.js MessageAck integer to the neutral DeliveryStatus.
+ * wwebjs: -1 ERROR, 0 PENDING, 1 SERVER (sent), 2 DEVICE (delivered), 3 READ, 4 PLAYED.
+ * PLAYED collapses to `read` (preserving prior behaviour, which treated ack>=3 as read).
+ */
+export function wwebjsAckToDeliveryStatus(ack: number): DeliveryStatus {
+  if (ack < 0) return 'failed';
+  if (ack >= 3) return 'read';
+  if (ack === 2) return 'delivered';
+  if (ack === 1) return 'sent';
+  return 'pending';
 }
 
 /**
@@ -318,7 +332,9 @@ export class WhatsAppWebJsAdapter extends EventEmitter implements IWhatsAppEngin
     });
 
     this.client.on('message_ack', (msg, ack) => {
-      this.callbacks.onMessageAck?.(msg.id._serialized, ack);
+      // Map the whatsapp-web.js MessageAck integer to the neutral DeliveryStatus here, at the
+      // adapter boundary, so no downstream consumer ever sees engine-specific ack codes.
+      this.callbacks.onMessageAck?.(msg.id._serialized, wwebjsAckToDeliveryStatus(ack));
     });
 
     this.client.on('message_revoke_everyone', after => {
@@ -530,10 +546,31 @@ export class WhatsAppWebJsAdapter extends EventEmitter implements IWhatsAppEngin
     }
   }
 
-  async checkNumberExists(number: string): Promise<boolean> {
+  async getNumberId(number: string): Promise<string | null> {
     this.ensureReady();
     const numberId = await this.client!.getNumberId(number);
-    return numberId !== null;
+    return numberId?._serialized ?? null;
+  }
+
+  async checkNumberExists(number: string): Promise<boolean> {
+    return (await this.getNumberId(number)) !== null;
+  }
+
+  async resolveContactPhone(contactId: string): Promise<string | null> {
+    this.ensureReady();
+    try {
+      // Queried one id at a time: the batch form is prone to "Evaluation failed" and rate-limiting
+      // (whatsapp-web.js #3857/#3969). `pn` is the phone JID (`<digits>@c.us`) when the account knows
+      // the mapping; best-effort, so a missing mapping or any failure resolves to null.
+      const [result] = await this.client!.getContactLidAndPhone([contactId]);
+      const pn = result?.pn;
+      return pn ? pn.replace(/@c\.us$/i, '').replace(/\D/g, '') || null : null;
+    } catch (error) {
+      this.logger.debug(`resolveContactPhone failed for ${contactId}`, {
+        error: error instanceof Error ? error.message : String(error),
+      });
+      return null;
+    }
   }
 
   async getGroups(): Promise<Group[]> {
@@ -968,10 +1005,12 @@ export class WhatsAppWebJsAdapter extends EventEmitter implements IWhatsAppEngin
       // Reuse the shared mapper so history messages carry the same author/contact
       // enrichment as live incoming messages (#223). The mapper defaults chatId to
       // msg.from, which is wrong here (history includes fromMe messages whose `from`
-      // is our own number), so override it to the requested chat and recompute isGroup.
+      // is our own number), so override it to the requested chat and recompute the
+      // chatId-derived flags (isGroup, isStatusBroadcast) from the real chat.
       const out = buildIncomingMessageBase(msg);
       out.chatId = chatId;
       out.isGroup = chatId.endsWith('@g.us');
+      out.isStatusBroadcast = chatId === 'status@broadcast';
       if (includeMedia && msg.hasMedia) {
         try {
           const media = await msg.downloadMedia();
