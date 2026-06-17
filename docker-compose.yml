@@ -164,24 +164,9 @@ services:
       - 'com.openwa.service=api'
       - 'com.openwa.core=true'
 
-  # ===== CORE: Dashboard Frontend =====
-  dashboard:
-    build:
-      context: ./dashboard
-      dockerfile: Dockerfile.traefik
-    container_name: openwa-dashboard
-    profiles: ['with-dashboard', 'full']
-    restart: unless-stopped
-    # App network only — the dashboard must NOT be able to reach docker-proxy:2375 (H6).
-    networks:
-      - openwa-network
-    expose:
-      - '80'
-    depends_on:
-      - openwa-api
-    labels:
-      - 'com.openwa.service=dashboard'
-      - 'com.openwa.core=true'
+  # The dashboard SPA is now bundled into the openwa-api image and served by NestJS on the
+  # same port (2785) - there is no separate dashboard container. Reach it at the openwa-api
+  # port directly, or via Traefik (above) when the with-proxy profile is enabled.
 
   # ===== OPTIONAL: Built-in PostgreSQL =====
   postgres:

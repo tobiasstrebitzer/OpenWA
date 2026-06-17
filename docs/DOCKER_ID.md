@@ -16,8 +16,7 @@ Sebelum memulai, pastikan server Anda sudah terinstal:
 OpenWA menggunakan fitur **Profiles** di Docker Compose untuk mempermudah orkestrasi layanan tambahan (database, cache, dll) sesuai kebutuhan infrastruktur Anda.
 
 ### Layanan Utama (Core)
-*   **`openwa-api`**: Server backend utama REST API OpenWA.
-*   **`dashboard`**: Antarmuka web (React UI) untuk mengelola sesi dan webhook.
+*   **`openwa-api`**: Server backend utama REST API OpenWA, sekaligus menyajikan Dashboard web (React UI) pada port yang sama.
 
 ### Layanan Tambahan (Optional Profiles)
 *   **`postgres`**: Database PostgreSQL (bawaan docker).
@@ -40,8 +39,8 @@ cd OpenWA
 docker compose -f docker-compose.dev.yml up -d
 ```
 
-Aplikasi dapat diakses di:
-*   **Dashboard UI**: `http://localhost:2886`
+Aplikasi dapat diakses di (Dashboard sudah menyatu dengan API pada port yang sama):
+*   **Dashboard UI**: `http://localhost:2785`
 *   **Swagger Docs**: `http://localhost:2785/api/docs`
 
 ---
@@ -61,19 +60,22 @@ Pastikan untuk mengubah nilai rahasia berikut di dalam `.env`:
 
 ### 2. Memilih Skenario Deployment (Docker Profiles)
 
+> Dashboard sudah menyatu ke dalam image API dan disajikan oleh NestJS pada port API (2785),
+> jadi tidak ada lagi profil/container `with-dashboard` terpisah.
+
 #### Skenario A: Produksi Minimalis (SQLite + Dashboard)
 Cocok untuk VPS resource kecil (RAM 1GB - 2GB):
 ```bash
-docker compose --profile with-dashboard up -d
+docker compose up -d
 ```
 
 #### Skenario B: Produksi Menengah (PostgreSQL + Dashboard)
 Cocok untuk keandalan data lebih tinggi:
 ```bash
-docker compose --profile postgres --profile with-dashboard up -d
+docker compose --profile postgres up -d
 ```
 
-#### Skenario C: Full Stack (PostgreSQL + Redis + S3 MinIO + Dashboard + Traefik)
+#### Skenario C: Full Stack (PostgreSQL + Redis + S3 MinIO + Traefik)
 Cocok untuk skala enterprise dengan multi-sesi aktif:
 ```bash
 docker compose --profile full up -d
@@ -87,8 +89,8 @@ Berikut variabel penting yang bisa disesuaikan di `.env`:
 
 | Nama Variabel | Nilai Default | Deskripsi |
 |---|---|---|
-| `API_PORT` | `2785` | Port yang digunakan untuk akses REST API. |
-| `DASHBOARD_PORT` | `2886` | Port untuk mengakses Dashboard UI. |
+| `API_PORT` | `2785` | Port REST API sekaligus Dashboard UI (disajikan oleh NestJS). |
+| `DASHBOARD_PORT` | `2886` | Port publik untuk proxy Traefik opsional (profil `with-proxy`). |
 | `DATABASE_TYPE` | `sqlite` | Jenis database yang digunakan (`sqlite` atau `postgres`). |
 | `DATABASE_NAME` | `/app/data/openwa.sqlite` | Lokasi database SQLite atau nama database PostgreSQL. |
 | `ENGINE_TYPE` | `whatsapp-web.js` | Driver/mesin engine WhatsApp yang digunakan. |

@@ -103,7 +103,7 @@ curl -s 'http://localhost:2785/api/infra/export-data' \
 #       POSTGRES_BUILTIN=true
 
 # Step 3: Restart with new configuration
-docker compose --profile with-dashboard --profile with-proxy up -d
+docker compose --profile with-proxy up -d
 
 # Step 4: Import data to new database
 curl -X POST 'http://localhost:2785/api/infra/import-data' \

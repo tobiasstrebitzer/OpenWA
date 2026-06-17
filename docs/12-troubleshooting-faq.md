@@ -85,11 +85,10 @@ and no unqualified-search registries are defined
 
 **Cause:** Podman rootless mode does not fall back to Docker Hub for unqualified image names.
 
-**Fix:** All `FROM` directives in `Dockerfile` and `dashboard/Dockerfile` must use fully-qualified names:
+**Fix:** All `FROM` directives in the `Dockerfile` must use fully-qualified names:
 
 ```dockerfile
 FROM docker.io/node:22-slim
-FROM docker.io/nginx:alpine
 ```
 
 ---

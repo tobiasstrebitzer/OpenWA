@@ -1,37 +1,18 @@
 # Traefik Dynamic Configuration
+#
+# The dashboard SPA is bundled into and served by openwa-api (NestJS) on the same port,
+# so every route - UI, /api, and /socket.io - goes to the single api service. Traefik
+# stays as the optional public entry point (TLS termination / single front-door).
 http:
   routers:
-    # API Router - highest priority for /api paths
-    api:
-      rule: 'PathPrefix(`/api/`)'
-      entryPoints:
-        - web
-      service: api
-      priority: 100
-
-    # WebSocket Router - highest priority for socket.io
-    websocket:
-      rule: 'PathPrefix(`/socket.io`)'
-      entryPoints:
-        - web
-      service: api
-      priority: 100
-
-    # Dashboard Router - catch-all for frontend (lowest priority)
-    dashboard:
+    openwa:
       rule: 'PathPrefix(`/`)'
       entryPoints:
         - web
-      service: dashboard
-      priority: 1
+      service: api
 
   services:
     api:
       loadBalancer:
         servers:
           - url: 'http://openwa-api:2785'
-
-    dashboard:
-      loadBalancer:
-        servers:
-          - url: 'http://openwa-dashboard:80'
