@@ -18,13 +18,18 @@ import {
   EngineStatus,
   ChatSummary,
   ChatState,
+  DeliveryStatus,
   IncomingMessage,
 } from '../../engine/interfaces/whatsapp-engine.interface';
 import { createLogger } from '../../common/services/logger.service';
 import { EventsGateway } from '../events/events.gateway';
 import { WebhookService } from '../webhook/webhook.service';
 import { HookManager } from '../../core/hooks';
-import { ackToMessageStatus, ackStatusTransitionFrom } from '../message/message-status.util';
+import {
+  deliveryStatusToMessageStatus,
+  deliveryStatusToAck,
+  ackStatusTransitionFrom,
+} from '../message/message-status.util';
 
 interface ReconnectState {
   attempts: number;
@@ -39,6 +44,11 @@ export class SessionService implements OnModuleDestroy, OnModuleInit, OnApplicat
 
   // In-memory map of active engine instances
   private engines: Map<string, IWhatsAppEngine> = new Map();
+  // Bounded cache for inline @lid -> phone resolution (#263), keyed `${sessionId}:${lid}`. Caches
+  // misses (null) too, so a chatty unmapped sender isn't re-queried on every message (which also
+  // reduces engine rate-limit pressure). Best-effort feature, so staleness is acceptable.
+  private readonly lidPhoneCache = new Map<string, string | null>();
+  private static readonly LID_PHONE_CACHE_MAX = 5000;
   // Transient, human-readable reason for the most recent terminal engine failure,
   // keyed by session id. Surfaced on read so the dashboard can explain a FAILED
   // status; cleared when the session re-initializes or becomes ready.
@@ -381,7 +391,7 @@ export class SessionService implements OnModuleDestroy, OnModuleInit, OnApplicat
             sessionId: id,
             source: 'Engine',
           })
-          .then(({ continue: shouldContinue, data: finalMessage }) => {
+          .then(async ({ continue: shouldContinue, data: finalMessage }) => {
             if (!shouldContinue) {
               // Plugin stopped processing (e.g., auto-reply handled it)
               return;
@@ -389,6 +399,14 @@ export class SessionService implements OnModuleDestroy, OnModuleInit, OnApplicat
 
             // Persist the incoming message so the dashboard chats view can render history.
             const incoming: IncomingMessage = finalMessage;
+
+            // Inline @lid -> phone resolution (#263), opt-in via RESOLVE_LID_TO_PHONE. Best-effort:
+            // attaches senderPhone (digits or null) before persist/dispatch so webhook/ws consumers
+            // get it in a single pass. Only for privacy-id senders, so no lookup for normal numbers.
+            if (process.env.RESOLVE_LID_TO_PHONE === 'true' && incoming.isLidSender && !incoming.fromMe) {
+              incoming.senderPhone = await this.resolveSenderPhone(id, incoming.author ?? incoming.from);
+            }
+
             const metadata: Record<string, unknown> = {};
             if (incoming.media) {
               metadata.media = incoming.media;
@@ -429,9 +447,9 @@ export class SessionService implements OnModuleDestroy, OnModuleInit, OnApplicat
           return;
         }
 
-        // Status/Story posts (`status@broadcast`) are account-created but not real conversations;
-        // don't emit `message.sent` for them.
-        if (message.to === 'status@broadcast' || message.chatId === 'status@broadcast') {
+        // Status/Story posts are account-created but not real conversations; don't emit `message.sent`
+        // for them. The adapter flags these (the engine-specific pseudo-JID stays out of this layer).
+        if (message.isStatusBroadcast) {
           return;
         }
 
@@ -462,48 +480,65 @@ export class SessionService implements OnModuleDestroy, OnModuleInit, OnApplicat
             this.eventsGateway.emitMessageSent(id, finalMessage);
           });
       },
-      onMessageAck: (messageId, ack): void => {
-        this.logger.debug(`Message ack: ${messageId} -> ${ack}`, {
+      onMessageAck: (messageId, status: DeliveryStatus): void => {
+        this.logger.debug(`Message ack: ${messageId} -> ${status}`, {
           sessionId: id,
           messageId,
-          ack,
+          status,
           action: 'message_ack',
         });
 
-        // Reflect real delivery state on the stored message (#220): ack=2 -> delivered, >=3 -> read,
-        // <0 -> failed. A send that never reaches ack>=2 stays SENT — visibly "not delivered".
+        // Reflect real delivery state on the stored message (#220): delivered/read/failed advance the
+        // stored status; pending/sent carry no upgrade (it's already SENT — visibly "not delivered").
         // The UPDATE is guarded to the allowed prior statuses so delivery state only ADVANCES: an
         // out-of-order/late ack cannot downgrade a higher status, which also makes these
         // fire-and-forget writes race-safe at the DB level.
-        const status = ackToMessageStatus(ack);
-        if (status) {
+        const messageStatus = deliveryStatusToMessageStatus(status);
+        if (messageStatus) {
           void this.messageRepository
             // Scope by sessionId: waMessageId is unique per account/chat, not global —
             // an ack on one session must never advance a same-id row in another session.
-            .update({ sessionId: id, waMessageId: messageId, status: In(ackStatusTransitionFrom(status)) }, { status })
+            .update(
+              { sessionId: id, waMessageId: messageId, status: In(ackStatusTransitionFrom(messageStatus)) },
+              { status: messageStatus },
+            )
             .then(result => {
               // affected:0 — the row was not advanced: either the send's 2nd save (which sets
               // waMessageId) hasn't committed yet, or the status is already at/above the target.
               if (result.affected === 0) {
-                this.logger.debug(`Message ack ${messageId}: no status row advanced to ${status} (ack=${ack})`, {
+                this.logger.debug(`Message ack ${messageId}: no status row advanced to ${messageStatus} (${status})`, {
                   sessionId: id,
                   messageId,
-                  ack,
+                  status,
                   action: 'message_ack_noop',
                 });
               }
             });
         }
 
+        // Push the live delivery/read tick to the dashboard over the websocket (neutral status).
+        this.eventsGateway.emitMessageAck(id, { messageId, status });
+
         // Dispatch the delivery/read receipt to webhooks (#155). Outgoing `message.sent` is handled
         // solely by `onMessageCreate`, so the ack path deliberately does NOT emit `message.sent`.
         // `id` mirrors the field every other message.* webhook carries (and the idempotency key
-        // resolver reads); `messageId` is kept for backward compatibility.
-        void this.webhookService.dispatch(id, 'message.ack', { id: messageId, messageId, ack });
+        // resolver reads). `ack` is a deprecated legacy field kept for backward compatibility —
+        // new consumers should read the neutral `status`.
+        void this.webhookService.dispatch(id, 'message.ack', {
+          id: messageId,
+          messageId,
+          status,
+          ack: deliveryStatusToAck(status),
+        });
 
         // Surface delivery failures actively so consumers don't have to poll for them (#220).
-        if (ack < 0) {
-          void this.webhookService.dispatch(id, 'message.failed', { id: messageId, messageId, ack });
+        if (status === 'failed') {
+          void this.webhookService.dispatch(id, 'message.failed', {
+            id: messageId,
+            messageId,
+            status,
+            ack: deliveryStatusToAck(status),
+          });
         }
       },
       onMessageRevoked: (message): void => {
@@ -765,6 +800,34 @@ export class SessionService implements OnModuleDestroy, OnModuleInit, OnApplicat
 
   getEngine(id: string): IWhatsAppEngine | undefined {
     return this.engines.get(id);
+  }
+
+  /**
+   * Best-effort resolution of a privacy-id sender (`@lid`) to a phone number for inline attachment on
+   * incoming messages (#263). Cached per session (incl. misses). Never throws — returns null on any
+   * failure or when the engine isn't available. Gated by the caller on `RESOLVE_LID_TO_PHONE`.
+   */
+  private async resolveSenderPhone(sessionId: string, contactId: string): Promise<string | null> {
+    const key = `${sessionId}:${contactId}`;
+    const cached = this.lidPhoneCache.get(key);
+    if (cached !== undefined) {
+      return cached;
+    }
+    let phone: string | null;
+    try {
+      phone = (await this.getEngine(sessionId)?.resolveContactPhone(contactId)) ?? null;
+    } catch {
+      phone = null;
+    }
+    // Bounded FIFO eviction: Map preserves insertion order, so the first key is the oldest.
+    if (this.lidPhoneCache.size >= SessionService.LID_PHONE_CACHE_MAX) {
+      for (const oldest of this.lidPhoneCache.keys()) {
+        this.lidPhoneCache.delete(oldest);
+        break;
+      }
+    }
+    this.lidPhoneCache.set(key, phone);
+    return phone;
   }
 
   async getGroups(id: string): Promise<{ id: string; name: string; linkedParentJID?: string | null }[]> {

@@ -46,11 +46,13 @@ export class ContactController {
   })
   @Mcp()
   async checkNumber(@Param('sessionId') sessionId: string, @Param('number') number: string) {
-    const exists = await this.contactService.checkNumberExists(sessionId, number);
+    // The engine returns the canonical chat id in its native format; we don't build the JID here
+    // (decoupled from the whatsapp-web.js `@c.us` scheme).
+    const whatsappId = await this.contactService.getNumberId(sessionId, number);
     return {
       number,
-      exists,
-      whatsappId: exists ? `${number}@c.us` : null,
+      exists: whatsappId !== null,
+      whatsappId,
     };
   }
 
@@ -68,6 +70,19 @@ export class ContactController {
   async getProfilePicture(@Param('sessionId') sessionId: string, @Param('contactId') contactId: string) {
     const url = await this.contactService.getProfilePicture(sessionId, contactId);
     return { url };
+  }
+
+  @Get(':contactId/phone')
+  @ApiOperation({ summary: 'Resolve a contact id (e.g. an @lid) to a phone number — best-effort' })
+  @ApiParam({ name: 'sessionId', description: 'Session ID' })
+  @ApiParam({ name: 'contactId', description: 'Contact ID / JID to resolve (e.g., an @lid)' })
+  @ApiResponse({
+    status: 200,
+    description: 'Resolved phone number (MSISDN digits), or null when the engine cannot map it',
+  })
+  async resolvePhone(@Param('sessionId') sessionId: string, @Param('contactId') contactId: string) {
+    const phone = await this.contactService.resolveContactPhone(sessionId, contactId);
+    return { contactId, phone };
   }
 
   @Post(':contactId/block')

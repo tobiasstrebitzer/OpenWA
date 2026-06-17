@@ -58,6 +58,7 @@
     "sessions": "Sessioni",
     "chats": "Chat",
     "webhooks": "Webhook",
+    "templates": "Templates",
     "apiKeys": "Chiavi API",
     "messageTester": "Tester Messaggi",
     "infrastructure": "Infrastruttura",
@@ -289,6 +290,51 @@
       "all": "Tutti gli eventi"
     }
   },
+  "templates": {
+    "title": "Templates",
+    "subtitle": "Create reusable message templates for each WhatsApp session",
+    "createTitle": "Create Template",
+    "editTitle": "Edit Template",
+    "newTemplate": "New Template",
+    "createTemplate": "Create Template",
+    "saveChanges": "Save Changes",
+    "viewOnly": "View Only",
+    "noSessions": "No sessions",
+    "sessionHint": "Saved under {{name}}",
+    "namePlaceholder": "e.g., order-confirmation",
+    "header": "Header",
+    "headerPlaceholder": "Optional intro line",
+    "body": "Body",
+    "bodyPlaceholder": "Hi {{customer}}, your order {{orderId}} is ready.",
+    "footer": "Footer",
+    "footerPlaceholder": "Optional closing line",
+    "previewTitle": "Preview",
+    "previewValuePlaceholder": "Sample value",
+    "previewEmpty": "Start writing a template to preview it here.",
+    "noPlaceholders": "Use {{name}} placeholders to test substitutions.",
+    "savedTitle": "Saved Templates",
+    "count": "{{count}} total",
+    "deleteTitle": "Delete Template",
+    "deleteConfirm": "Delete template \"{{name}}\"? This action cannot be undone.",
+    "actions": {
+      "copyName": "Copy template name"
+    },
+    "empty": {
+      "title": "No templates saved",
+      "description": "Create a reusable template to speed up common replies and notifications.",
+      "noSessionsTitle": "No sessions available",
+      "noSessionsDesc": "Create a WhatsApp session before adding templates."
+    },
+    "toasts": {
+      "created": "Template created successfully",
+      "createFailed": "Failed to create template: {{message}}",
+      "updated": "Template updated successfully",
+      "updateFailed": "Failed to update template: {{message}}",
+      "deleted": "Template deleted successfully",
+      "deleteFailed": "Failed to delete template: {{message}}",
+      "copied": "Template name copied"
+    }
+  },
   "apiKeys": {
     "title": "Chiavi API",
     "subtitle": "Gestisci le chiavi API per l'autenticazione e il controllo degli accessi",
@@ -339,7 +385,7 @@
     }
   },
   "logs": {
-    "title": "Registri di Controllo",
+    "title": "Log di Controllo",
     "subtitle": "Traccia ed esamina tutte le azioni API e gli eventi di sistema",
     "exportCsv": "Esporta CSV",
     "searchPlaceholder": "Cerca nei log...",
@@ -358,8 +404,8 @@
       "severity": "Gravità"
     },
     "empty": {
-      "title": "Nessun registro trovato",
-      "description": "I registri di controllo appariranno qui man mano che verranno eseguite le azioni"
+      "title": "Nessun log trovato",
+      "description": "I log di audit appariranno qui man mano che verranno eseguite le azioni"
     }
   },
   "messageTester": {
@@ -409,7 +455,7 @@
   },
   "infrastructure": {
     "title": "Infrastruttura",
-    "subtitle": "Configura le impostazioni del server, del database, della cache, dello storage e del motore",
+    "subtitle": "Configura le impostazioni del server, del database, della cache, dell'archiviazione e del motore",
     "saveConfig": "Salva Configurazione",
     "saving": "Salvataggio...",
     "server": {
@@ -474,7 +520,7 @@
       "passwordOptional": "(opzionale)"
     },
     "storage": {
-      "title": "Configurazione Storage",
+      "title": "Configurazione di Archiviazione",
       "local": "Filesystem Locale",
       "localDesc": "Memorizza i file multimediali localmente",
       "s3": "Amazon S3",
