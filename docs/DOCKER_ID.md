@@ -22,7 +22,6 @@ OpenWA menggunakan fitur **Profiles** di Docker Compose untuk mempermudah orkest
 *   **`postgres`**: Database PostgreSQL (bawaan docker).
 *   **`redis`**: Caching layer untuk performa tinggi.
 *   **`minio`**: Penyimpanan berkas media yang kompatibel dengan Amazon S3.
-*   **`with-proxy`**: Reverse proxy Traefik otomatis.
 
 ---
 
@@ -75,7 +74,7 @@ Cocok untuk keandalan data lebih tinggi:
 docker compose --profile postgres up -d
 ```
 
-#### Skenario C: Full Stack (PostgreSQL + Redis + S3 MinIO + Traefik)
+#### Skenario C: Full Stack (PostgreSQL + Redis + S3 MinIO)
 Cocok untuk skala enterprise dengan multi-sesi aktif:
 ```bash
 docker compose --profile full up -d
@@ -90,7 +89,6 @@ Berikut variabel penting yang bisa disesuaikan di `.env`:
 | Nama Variabel | Nilai Default | Deskripsi |
 |---|---|---|
 | `API_PORT` | `2785` | Port REST API sekaligus Dashboard UI (disajikan oleh NestJS). |
-| `DASHBOARD_PORT` | `2886` | Port publik untuk proxy Traefik opsional (profil `with-proxy`). |
 | `DATABASE_TYPE` | `sqlite` | Jenis database yang digunakan (`sqlite` atau `postgres`). |
 | `DATABASE_NAME` | `/app/data/openwa.sqlite` | Lokasi database SQLite atau nama database PostgreSQL. |
 | `ENGINE_TYPE` | `whatsapp-web.js` | Driver/mesin engine WhatsApp yang digunakan. |

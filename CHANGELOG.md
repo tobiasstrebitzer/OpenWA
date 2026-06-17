@@ -21,6 +21,11 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 - The API's Content-Security-Policy now allows `https://fonts.googleapis.com` (`style-src`) and
   `https://fonts.gstatic.com` (`font-src`) so the dashboard's webfonts load now that it is served
   under the API's CSP. (Previously the dashboard's own nginx served it without this CSP.)
+- **BREAKING - removed the bundled Traefik reverse proxy.** With the API serving both the UI and the
+  API on one port, the shipped Traefik service was a single-backend passthrough that added no value
+  (it terminated no TLS out of the box). Removed the `traefik` service, the `traefik/` configs, and
+  the `with-proxy` profile. For TLS / public exposure, put your own reverse proxy (nginx, Caddy, a
+  cloud load balancer, or a k8s Ingress) in front of the API - see `docs/12-troubleshooting-faq.md`.
 
 ### Added
 
@@ -31,8 +36,10 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 - The dashboard moved from `:2886` (separate nginx container) to the API port `:2785`. Update
   bookmarks, monitoring, and any external reverse-proxy config accordingly.
-- The `with-dashboard` compose profile and the `DASHBOARD_ENABLED` env var are removed (the
-  dashboard ships with the API; ignored if still set).
+- The `with-dashboard` and `with-proxy` compose profiles are gone (the dashboard ships with the
+  API). `--profile full` now starts the optional datastores (postgres, redis, minio).
+- The `DASHBOARD_PORT`, `PROXY_ENABLED`, and `DASHBOARD_ENABLED` env vars are removed (silently
+  ignored if still set). If you relied on Traefik for TLS, front the API with your own proxy.
 
 ## [0.2.7] - 2026-06-16
 

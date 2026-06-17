@@ -187,20 +187,21 @@ docker compose up -d
 # With PostgreSQL database
 docker compose --profile postgres up -d
 
-# Full stack (PostgreSQL, Redis, Traefik)
+# Full stack (PostgreSQL, Redis, MinIO)
 docker compose --profile full up -d
 ```
 
-| Profile      | Services              |
-| ------------ | --------------------- |
-| `postgres`   | PostgreSQL database   |
-| `redis`      | Redis cache           |
-| `minio`      | S3-compatible storage |
-| `with-proxy` | Traefik reverse proxy |
-| `full`       | All services above    |
+| Profile    | Services              |
+| ---------- | --------------------- |
+| `postgres` | PostgreSQL database   |
+| `redis`    | Redis cache           |
+| `minio`    | S3-compatible storage |
+| `full`     | All services above    |
 
 > The dashboard is bundled into the API image and served by NestJS on the API port, so it
-> needs no profile - it is always available wherever `openwa-api` runs.
+> needs no profile — it is always available wherever `openwa-api` runs. For TLS/public exposure,
+> put your own reverse proxy (nginx, Caddy, a cloud load balancer, or a k8s Ingress) in front;
+> see the nginx example in `docs/12-troubleshooting-faq.md`.
 
 > **Development vs Production**
 >
@@ -213,10 +214,10 @@ docker compose --profile full up -d
 
 ## 🔌 Ports
 
-| Service         | Port            | Description                                     |
-| --------------- | --------------- | ----------------------------------------------- |
-| API & Dashboard | `2785`          | REST API + bundled web dashboard (same port)    |
-| Swagger         | `2785/api/docs` | Interactive API docs                            |
+| Service         | Port            | Description                                   |
+| --------------- | --------------- | --------------------------------------------- |
+| API & Dashboard | `2785`          | REST API + bundled web dashboard (same port)  |
+| Swagger         | `2785/api/docs` | Interactive API docs                          |
 | Dashboard (dev) | `2886`          | Vite dev server with hot reload (`npm run dev`) |
 
 ---

@@ -37,14 +37,8 @@ load_env() {
 get_profiles() {
     local profiles=""
 
-    # Dashboard is bundled into the openwa-api image and served by NestJS on the API port -
-    # no separate container/profile needed.
-
-    # Proxy (default: enabled)
-    if [ "${PROXY_ENABLED:-true}" = "true" ]; then
-        profiles="$profiles --profile with-proxy"
-        log_info "Proxy (Traefik): enabled"
-    fi
+    # Dashboard is bundled into the openwa-api image and served by NestJS on the API port —
+    # no separate container/profile needed. Put your own TLS proxy in front if required.
 
     # PostgreSQL (built-in)
     if [ "${DATABASE_TYPE:-sqlite}" = "postgres" ] && [ "${POSTGRES_BUILTIN:-false}" = "true" ]; then
@@ -117,16 +111,13 @@ cmd_start() {
     log_success "OpenWA started successfully!"
     echo ""
     log_info "Dashboard & API: http://localhost:${API_PORT:-2785}"
-    if [ "${PROXY_ENABLED:-true}" = "true" ]; then
-        log_info "Public (Traefik): http://localhost:${DASHBOARD_PORT:-2886}"
-    fi
 }
 
 # Stop OpenWA
 cmd_stop() {
     log_info "Stopping OpenWA..."
     cd "$PROJECT_DIR"
-    docker compose --profile postgres --profile redis --profile minio --profile with-proxy down
+    docker compose --profile full down
     log_success "OpenWA stopped"
 }
 
