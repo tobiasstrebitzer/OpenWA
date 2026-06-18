@@ -9,6 +9,8 @@
     "edit": "تعديل",
     "create": "إنشاء",
     "close": "إغلاق",
+    "showApiKey": "إظهار مفتاح API",
+    "hideApiKey": "إخفاء مفتاح API",
     "submit": "إرسال",
     "confirm": "تأكيد",
     "search": "بحث",
@@ -451,7 +453,8 @@
       "messageId": "معرّف الرسالة",
       "error": "خطأ"
     },
-    "sendFailed": "فشل إرسال الرسالة"
+    "sendFailed": "فشل إرسال الرسالة",
+    "notOnWhatsApp": "هذا الرقم غير مسجَّل على واتساب"
   },
   "infrastructure": {
     "title": "البنية التحتية",

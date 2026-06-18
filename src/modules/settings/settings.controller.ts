@@ -4,6 +4,7 @@ import { ConfigService } from '@nestjs/config';
 import { Mcp } from '@silkweave/nestjs';
 import { RequireRole } from '../auth/decorators/auth.decorators';
 import { ApiKeyRole } from '../auth/entities/api-key.entity';
+import { UpdateSettingsDto } from './dto/update-settings.dto';
 
 interface Settings {
   general: {
@@ -66,7 +67,7 @@ export class SettingsController {
   @ApiOperation({ summary: 'Update application settings' })
   @ApiResponse({ status: 200, description: 'Settings updated' })
   @Mcp()
-  update(@Body() newSettings: Partial<Settings>): Settings {
+  update(@Body() newSettings: UpdateSettingsDto): Settings {
     if (newSettings.general) {
       this.settings.general = {
         ...this.settings.general,

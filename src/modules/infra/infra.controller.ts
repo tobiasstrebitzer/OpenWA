@@ -1,6 +1,8 @@
 import { Controller, Get, Put, Post, Body, BadRequestException } from '@nestjs/common';
-import { ApiTags, ApiOperation, ApiResponse, ApiBody } from '@nestjs/swagger';
+import { ApiTags, ApiOperation, ApiResponse } from '@nestjs/swagger';
 import { Mcp } from '@silkweave/nestjs';
+import { SaveConfigDto, RequestRestartDto, ImportDataDto, ImportStorageDto } from './dto';
+import type { MigrationTables, SessionRow, WebhookRow, MessageRow, MessageBatchRow } from './dto';
 import { ConfigService } from '@nestjs/config';
 import { DataSource } from 'typeorm';
 import { InjectDataSource } from '@nestjs/typeorm';
@@ -27,113 +29,6 @@ interface InfraStatus {
   };
   storage: { type: 'local' | 's3'; path?: string; bucket?: string };
   engine: { type: string; headless: boolean; sessionDataPath: string; browserArgs: string };
-}
-
-interface SaveConfigDto {
-  database?: {
-    type: 'sqlite' | 'postgres';
-    builtIn?: boolean;
-    host?: string;
-    port?: string;
-    username?: string;
-    password?: string;
-    database?: string;
-    poolSize?: number;
-    sslEnabled?: boolean;
-    sslRejectUnauthorized?: boolean;
-  };
-  redis?: {
-    enabled?: boolean;
-    builtIn?: boolean;
-    host?: string;
-    port?: string;
-    password?: string;
-  };
-  queue?: {
-    enabled?: boolean;
-  };
-  storage?: {
-    type: 'local' | 's3';
-    builtIn?: boolean;
-    localPath?: string;
-    s3Bucket?: string;
-    s3Region?: string;
-    s3AccessKey?: string;
-    s3SecretKey?: string;
-    s3Endpoint?: string;
-  };
-  engine?: {
-    headless?: boolean;
-    sessionDataPath?: string;
-    browserArgs?: string;
-  };
-}
-
-// Database migration types for export/import
-interface SessionRow {
-  id: string;
-  name: string;
-  status: string;
-  phone: string | null;
-  pushName: string | null;
-  config: string | Record<string, unknown>;
-  proxyUrl: string | null;
-  proxyType: string | null;
-  connectedAt: string | null;
-  lastActiveAt: string | null;
-  createdAt: string;
-  updatedAt: string;
-}
-
-interface WebhookRow {
-  id: string;
-  sessionId: string;
-  url: string;
-  events: string | string[];
-  secret: string | null;
-  headers: string | Record<string, string>;
-  active: boolean;
-  retryCount: number;
-  lastTriggeredAt: string | null;
-  createdAt: string;
-  updatedAt: string;
-}
-
-interface MessageRow {
-  id: string;
-  sessionId: string;
-  messageId: string;
-  chatId: string;
-  direction: string;
-  type: string;
-  content: string | Record<string, unknown>;
-  status: string;
-  metadata: string | Record<string, unknown>;
-  createdAt: string;
-  updatedAt: string;
-}
-
-interface MessageBatchRow {
-  id: string;
-  batchId: string;
-  sessionId: string;
-  status: string;
-  messages: string | unknown[];
-  options: string | Record<string, unknown>;
-  progress: string | Record<string, unknown>;
-  results: string | unknown[];
-  currentIndex: number;
-  createdAt: string;
-  updatedAt: string;
-  startedAt: string | null;
-  completedAt: string | null;
-}
-
-interface MigrationTables {
-  sessions: SessionRow[];
-  webhooks: WebhookRow[];
-  messages: MessageRow[];
-  messageBatches: MessageBatchRow[];
 }
 
 // Saved infrastructure config returned to the dashboard form for hydration. Secret
@@ -297,7 +192,6 @@ export class InfraController {
   @RequireRole(ApiKeyRole.ADMIN)
   @ApiOperation({ summary: 'Save infrastructure configuration to .env file' })
   @ApiResponse({ status: 200, description: 'Configuration saved' })
-  @ApiBody({ description: 'Configuration to save' })
   @Mcp()
   saveConfig(@Body() config: SaveConfigDto): { message: string; saved: boolean; envPath: string; profiles: string[] } {
     try {
@@ -475,7 +369,7 @@ export class InfraController {
   @ApiOperation({ summary: 'Request server restart with Docker orchestration' })
   @ApiResponse({ status: 200, description: 'Server will restart with new profiles' })
   @Mcp()
-  async requestRestart(@Body() body?: { profiles?: string[]; profilesToRemove?: string[] }): Promise<{
+  async requestRestart(@Body() body?: RequestRestartDto): Promise<{
     message: string;
     restarting: boolean;
     profiles: string[];
@@ -627,31 +521,9 @@ export class InfraController {
   @Post('import-data')
   @RequireRole(ApiKeyRole.ADMIN)
   @ApiOperation({ summary: 'Import data to Data DB (replaces existing data)' })
-  @ApiBody({
-    description: 'Exported data from export-data endpoint',
-    schema: {
-      type: 'object',
-      properties: {
-        tables: {
-          type: 'object',
-          properties: {
-            sessions: { type: 'array' },
-            webhooks: { type: 'array' },
-            messages: { type: 'array' },
-            messageBatches: { type: 'array' },
-          },
-        },
-      },
-    },
-  })
   @ApiResponse({ status: 200, description: 'Data imported successfully' })
   @Mcp()
-  async importData(
-    @Body()
-    data: {
-      tables: Partial<MigrationTables>;
-    },
-  ): Promise<{
+  async importData(@Body() data: ImportDataDto): Promise<{
     imported: boolean;
     counts: { sessions: number; webhooks: number; messages: number; messageBatches: number };
     warnings: string[];
@@ -859,11 +731,10 @@ export class InfraController {
   @Post('storage/import')
   @RequireRole(ApiKeyRole.ADMIN)
   @ApiOperation({ summary: 'Import storage files from tar.gz' })
-  @ApiBody({ description: 'Path to tar.gz file to import' })
   @ApiResponse({ status: 200, description: 'Import result' })
   @Mcp()
   async importStorage(
-    @Body() body: { filePath: string },
+    @Body() body: ImportStorageDto,
   ): Promise<{ imported: boolean; count: number; storageType: string }> {
     const { filePath } = body;
 

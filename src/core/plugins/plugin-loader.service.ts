@@ -1,11 +1,15 @@
 import { Injectable, OnModuleInit } from '@nestjs/common';
 import { ConfigService } from '@nestjs/config';
+import { ModuleRef } from '@nestjs/core';
 import * as fs from 'fs';
 import * as path from 'path';
 import { createLogger } from '../../common/services/logger.service';
 import { HookManager } from '../hooks';
 import {
+  PluginCapabilityError,
+  PluginEngineReadCapability,
   PluginManifest,
+  PluginMessagingCapability,
   PluginInstance,
   PluginStatus,
   PluginContext,
@@ -14,6 +18,9 @@ import {
   PluginLogger,
 } from './plugin.interfaces';
 import { PluginStorageService } from './plugin-storage.service';
+import type { MessageService } from '../../modules/message/message.service';
+import type { SessionService } from '../../modules/session/session.service';
+import type { IWhatsAppEngine } from '../../engine/interfaces/whatsapp-engine.interface';
 
 /**
  * Resolve a plugin's `main` entry to an absolute path, asserting it stays inside
@@ -39,6 +46,10 @@ export class PluginLoaderService implements OnModuleInit {
     private readonly configService: ConfigService,
     private readonly hookManager: HookManager,
     private readonly pluginStorage: PluginStorageService,
+    // Resolves MessageService/SessionService lazily inside capability verbs. ModuleRef is used
+    // instead of constructor injection to avoid the provider cycle
+    // PluginLoaderService -> SessionService -> EngineFactory -> PluginLoaderService.
+    private readonly moduleRef: ModuleRef,
   ) {
     this.pluginsDir = this.configService.get<string>('plugins.dir') ?? './plugins';
   }
@@ -273,6 +284,51 @@ export class PluginLoaderService implements OnModuleInit {
     });
   }
 
+  /**
+   * Resolve MessageService at call time via a lazy require so plugin-loader creates NO top-level
+   * module-load edge to message.service. A static import closes the cycle
+   * plugin-loader -> message -> session -> engine.factory -> core/plugins barrel -> plugin-loader,
+   * which corrupts MessageService's constructor paramtype metadata (SessionService -> undefined) at boot.
+   */
+  private getMessageService(): MessageService {
+    const mod =
+      // eslint-disable-next-line @typescript-eslint/no-require-imports
+      require('../../modules/message/message.service') as typeof import('../../modules/message/message.service');
+    return this.moduleRef.get(mod.MessageService, { strict: false });
+  }
+
+  private getSessionService(): SessionService {
+    const mod =
+      // eslint-disable-next-line @typescript-eslint/no-require-imports
+      require('../../modules/session/session.service') as typeof import('../../modules/session/session.service');
+    return this.moduleRef.get(mod.SessionService, { strict: false });
+  }
+
+  /**
+   * Enforce a plugin's manifest session scope. Runs BEFORE any engine/message resolution —
+   * sessionId is supplied by the plugin, so this is the security boundary. Absent = ['*'].
+   */
+  private assertSessionAllowed(manifest: PluginManifest, sessionId: string): void {
+    const allowed = manifest.sessions ?? ['*'];
+    if (!allowed.includes('*') && !allowed.includes(sessionId)) {
+      throw new PluginCapabilityError(`Plugin ${manifest.id} is not permitted to act on session ${sessionId}`);
+    }
+  }
+
+  /**
+   * Scope-check, then resolve the live engine for a session. getEngine returns undefined for an
+   * unknown OR unstarted session (no throw), so guard it into a defined PluginCapabilityError.
+   * A present-but-not-READY engine throws EngineNotReadyError from the adapter on use (→ 409).
+   */
+  private resolveEngine(manifest: PluginManifest, sessionId: string): IWhatsAppEngine {
+    this.assertSessionAllowed(manifest, sessionId);
+    const engine = this.getSessionService().getEngine(sessionId);
+    if (!engine) {
+      throw new PluginCapabilityError(`Session ${sessionId} has no active engine (unknown or not started)`);
+    }
+    return engine;
+  }
+
   private createPluginContext(plugin: PluginInstance): PluginContext {
     const pluginLogger: PluginLogger = {
       log: (message, meta) =>
@@ -299,11 +355,29 @@ export class PluginLoaderService implements OnModuleInit {
       registerHook: (event, handler, priority) => {
         this.hookManager.register(plugin.manifest.id, event, handler, priority);
       },
-      getService: <T>(): T | undefined => {
-        // Limited service access for sandboxing
-        // Only expose safe services
-        return undefined;
-      },
+      messages: {
+        sendText: async (sessionId, chatId, text) => {
+          // Validate scope + that the session has a live engine BEFORE MessageService persists a
+          // pending row: a dead/unstarted session must fail with PluginCapabilityError, not a raw
+          // TypeError + orphaned row. resolveEngine also runs assertSessionAllowed.
+          this.resolveEngine(plugin.manifest, sessionId);
+          return this.getMessageService().sendText(sessionId, { chatId, text });
+        },
+        reply: async (sessionId, chatId, quotedMessageId, text) => {
+          this.resolveEngine(plugin.manifest, sessionId);
+          return this.getMessageService().reply(sessionId, { chatId, quotedMessageId, text });
+        },
+      } satisfies PluginMessagingCapability,
+      engine: {
+        getGroupInfo: async (sessionId, groupId) =>
+          this.resolveEngine(plugin.manifest, sessionId).getGroupInfo(groupId),
+        getContacts: async sessionId => this.resolveEngine(plugin.manifest, sessionId).getContacts(),
+        getContactById: async (sessionId, contactId) =>
+          this.resolveEngine(plugin.manifest, sessionId).getContactById(contactId),
+        checkNumberExists: async (sessionId, phone) =>
+          this.resolveEngine(plugin.manifest, sessionId).checkNumberExists(phone),
+        getChats: async sessionId => this.resolveEngine(plugin.manifest, sessionId).getChats(),
+      } satisfies PluginEngineReadCapability,
     };
   }
 
@@ -336,11 +410,11 @@ export class PluginLoaderService implements OnModuleInit {
   // Built-in Plugin Registration (for Phase 4)
   // ============================================================================
 
-  registerBuiltInPlugin(manifest: PluginManifest, instance: IPlugin): void {
+  registerBuiltInPlugin(manifest: PluginManifest, instance: IPlugin, config: Record<string, unknown> = {}): void {
     const pluginInstance: PluginInstance = {
       manifest,
       status: PluginStatus.INSTALLED,
-      config: {},
+      config,
       instance,
       loadedAt: new Date(),
     };

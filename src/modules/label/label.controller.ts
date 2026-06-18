@@ -3,6 +3,8 @@ import { ApiTags, ApiOperation, ApiResponse, ApiParam, ApiBody } from '@nestjs/s
 import { Mcp } from '@silkweave/nestjs';
 import { LabelService } from './label.service';
 import { AddLabelDto } from './dto/add-label.dto';
+import { RequireRole } from '../auth/decorators/auth.decorators';
+import { ApiKeyRole } from '../auth/entities/api-key.entity';
 
 @ApiTags('labels')
 @Controller('sessions/:sessionId/labels')
@@ -51,6 +53,7 @@ export class LabelController {
   }
 
   @Post('chat/:chatId')
+  @RequireRole(ApiKeyRole.OPERATOR)
   @ApiOperation({ summary: 'Add a label to a chat' })
   @ApiParam({ name: 'sessionId', description: 'Session ID' })
   @ApiParam({ name: 'chatId', description: 'Chat ID' })
@@ -78,6 +81,7 @@ export class LabelController {
   }
 
   @Delete('chat/:chatId/:labelId')
+  @RequireRole(ApiKeyRole.OPERATOR)
   @ApiOperation({ summary: 'Remove a label from a chat' })
   @ApiParam({ name: 'sessionId', description: 'Session ID' })
   @ApiParam({ name: 'chatId', description: 'Chat ID' })

@@ -9,6 +9,8 @@
     "edit": "עריכה",
     "create": "יצירה",
     "close": "סגירה",
+    "showApiKey": "הצג מפתח API",
+    "hideApiKey": "הסתר מפתח API",
     "submit": "שליחה",
     "confirm": "אישור",
     "search": "חיפוש",
@@ -451,7 +453,8 @@
       "messageId": "מזהה הודעה",
       "error": "שגיאה"
     },
-    "sendFailed": "שליחת ההודעה נכשלה"
+    "sendFailed": "שליחת ההודעה נכשלה",
+    "notOnWhatsApp": "מספר זה אינו רשום בוואטסאפ"
   },
   "infrastructure": {
     "title": "תשתית",

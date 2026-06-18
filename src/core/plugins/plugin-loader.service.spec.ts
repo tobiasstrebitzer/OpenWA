@@ -24,3 +24,38 @@ describe('resolvePluginMainPath', () => {
     expect(() => resolvePluginMainPath(dir, 'my-plugin', '../other-plugin/evil.js')).toThrow(/escapes/);
   });
 });
+
+import { PluginLoaderService } from './plugin-loader.service';
+import { ConfigService } from '@nestjs/config';
+import { ModuleRef } from '@nestjs/core';
+import { HookManager } from '../hooks';
+import { PluginStorageService } from './plugin-storage.service';
+import { IPlugin, PluginManifest, PluginType } from './plugin.interfaces';
+
+describe('PluginLoaderService.registerBuiltInPlugin config', () => {
+  function makeLoader(): PluginLoaderService {
+    const configService = { get: jest.fn().mockReturnValue(undefined) } as unknown as ConfigService;
+    const pluginStorage = {} as unknown as PluginStorageService;
+    return new PluginLoaderService(configService, new HookManager(), pluginStorage, {} as unknown as ModuleRef);
+  }
+  const manifest: PluginManifest = {
+    id: 'cfg-test',
+    name: 'Cfg Test',
+    version: '1.0.0',
+    type: PluginType.ENGINE,
+    main: 'index.ts',
+  };
+  const instance = {} as unknown as IPlugin;
+
+  it('stores the supplied config on the plugin instance', () => {
+    const loader = makeLoader();
+    loader.registerBuiltInPlugin(manifest, instance, { sessionDataPath: '/d', puppeteer: { headless: false } });
+    expect(loader.getPlugin('cfg-test')?.config).toEqual({ sessionDataPath: '/d', puppeteer: { headless: false } });
+  });
+
+  it('defaults to an empty config when none is supplied (back-compat)', () => {
+    const loader = makeLoader();
+    loader.registerBuiltInPlugin(manifest, instance);
+    expect(loader.getPlugin('cfg-test')?.config).toEqual({});
+  });
+});

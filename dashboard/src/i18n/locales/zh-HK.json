@@ -9,6 +9,8 @@
     "edit": "編輯",
     "create": "建立",
     "close": "關閉",
+    "showApiKey": "顯示 API 金鑰",
+    "hideApiKey": "隱藏 API 金鑰",
     "submit": "提交",
     "confirm": "確認",
     "search": "搜尋",
@@ -451,7 +453,8 @@
       "messageId": "訊息 ID",
       "error": "錯誤"
     },
-    "sendFailed": "傳送訊息失敗"
+    "sendFailed": "傳送訊息失敗",
+    "notOnWhatsApp": "此號碼未在 WhatsApp 註冊"
   },
   "infrastructure": {
     "title": "基礎架構",

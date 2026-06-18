@@ -14,7 +14,15 @@ import {
   CornerUpLeft,
   Trash2,
 } from 'lucide-react';
-import { sessionApi, messageApi, type Session, type Chat, type ChatMessage } from '../services/api';
+import {
+  sessionApi,
+  messageApi,
+  asMessageType,
+  type Session,
+  type Chat,
+  type ChatMessage,
+  type MessageType,
+} from '../services/api';
 import { useWebSocket } from '../hooks/useWebSocket';
 import { useDocumentTitle } from '../hooks/useDocumentTitle';
 import { useRole } from '../hooks/useRole';
@@ -65,6 +73,15 @@ interface IncomingWsMessage {
   quotedMessage?: { id: string; body: string };
   metadata?: ChatMessageView['metadata'];
 }
+
+// Map an attachment MIME type to the neutral MessageType for the optimistic outgoing bubble, so the
+// placeholder matches what the backend will persist (e.g. a PDF is `document`, not `application`).
+const messageTypeFromMime = (mimetype: string): MessageType => {
+  if (mimetype.startsWith('image/')) return 'image';
+  if (mimetype.startsWith('video/')) return 'video';
+  if (mimetype.startsWith('audio/')) return 'audio';
+  return 'document';
+};
 
 const getMediaSrc = (media?: MessageMedia): string => {
   if (!media || !media.data) return '';
@@ -191,7 +208,7 @@ export function Chats() {
           from: newMsg.from,
           to: newMsg.to,
           body: newMsg.body,
-          type: newMsg.type,
+          type: asMessageType(newMsg.type),
           direction: newMsg.fromMe ? 'outgoing' : 'incoming',
           status: 'sent',
           timestamp: newMsg.timestamp,
@@ -278,7 +295,7 @@ export function Chats() {
         prev.map(msg => {
           if (msg.id === event.id || msg.waMessageId === event.id) {
             // The backend emits an empty body; the localized "deleted" label is rendered below.
-            return { ...msg, body: '', type: event.type };
+            return { ...msg, body: '', type: asMessageType(event.type) };
           }
           return msg;
         }),
@@ -471,7 +488,7 @@ export function Chats() {
           ? textToSend
           : attachment.filename
         : textToSend,
-      type: attachment ? attachment.mimetype.split('/')[0] : 'text',
+      type: attachment ? messageTypeFromMime(attachment.mimetype) : 'text',
       direction: 'outgoing',
       status: 'pending',
       createdAt: new Date().toISOString(),

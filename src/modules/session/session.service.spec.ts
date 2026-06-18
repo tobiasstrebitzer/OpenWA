@@ -128,6 +128,24 @@ describe('SessionService', () => {
     service = module.get<SessionService>(SessionService);
   });
 
+  // ── shutdown ──────────────────────────────────────────────────────
+
+  describe('onModuleDestroy', () => {
+    it('destroys every engine even if one destroy() throws, and clears the map', async () => {
+      const good = { destroy: jest.fn().mockResolvedValue(undefined) };
+      const bad = { destroy: jest.fn().mockRejectedValue(new Error('stuck chromium')) };
+      const engines = (service as unknown as { engines: Map<string, unknown> }).engines;
+      engines.set('s-good', good);
+      engines.set('s-bad', bad);
+
+      await expect(service.onModuleDestroy()).resolves.toBeUndefined();
+
+      expect(good.destroy).toHaveBeenCalledTimes(1);
+      expect(bad.destroy).toHaveBeenCalledTimes(1);
+      expect(engines.size).toBe(0);
+    });
+  });
+
   // ── create ────────────────────────────────────────────────────────
 
   describe('create', () => {

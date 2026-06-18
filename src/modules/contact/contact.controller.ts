@@ -2,6 +2,8 @@ import { Controller, Get, Post, Delete, Param, HttpCode, HttpStatus } from '@nes
 import { ApiTags, ApiOperation, ApiResponse, ApiParam } from '@nestjs/swagger';
 import { Mcp } from '@silkweave/nestjs';
 import { ContactService } from './contact.service';
+import { RequireRole } from '../auth/decorators/auth.decorators';
+import { ApiKeyRole } from '../auth/entities/api-key.entity';
 
 @ApiTags('contacts')
 @Controller('sessions/:sessionId/contacts')
@@ -80,12 +82,14 @@ export class ContactController {
     status: 200,
     description: 'Resolved phone number (MSISDN digits), or null when the engine cannot map it',
   })
+  @Mcp()
   async resolvePhone(@Param('sessionId') sessionId: string, @Param('contactId') contactId: string) {
     const phone = await this.contactService.resolveContactPhone(sessionId, contactId);
     return { contactId, phone };
   }
 
   @Post(':contactId/block')
+  @RequireRole(ApiKeyRole.OPERATOR)
   @HttpCode(HttpStatus.OK)
   @ApiOperation({ summary: 'Block a contact' })
   @ApiParam({ name: 'sessionId', description: 'Session ID' })
@@ -101,6 +105,7 @@ export class ContactController {
   }
 
   @Delete(':contactId/block')
+  @RequireRole(ApiKeyRole.OPERATOR)
   @ApiOperation({ summary: 'Unblock a contact' })
   @ApiParam({ name: 'sessionId', description: 'Session ID' })
   @ApiParam({ name: 'contactId', description: 'Contact ID (e.g., 628xxx@c.us)' })

@@ -33,6 +33,7 @@ import { HooksModule } from './core/hooks';
 import { PluginsModule } from './core/plugins';
 import { PluginsApiModule } from './modules/plugins/plugins.module';
 import { ApiKeyGuard } from './modules/auth/guards/api-key.guard';
+import { ExtensionsModule } from './plugins/extensions/extensions.module';
 
 // Only import QueueModule if explicitly enabled to avoid Redis connection errors
 const queueModules: Array<Type | DynamicModule> = [];
@@ -60,11 +61,11 @@ export const dashboardBuildPresent = fs.existsSync(path.join(DASHBOARD_DIST, 'in
 // otherwise applied to Silkweave's raw routes). See @Mcp() usage in the controllers.
 const mcpModules: Array<Type | DynamicModule> = [];
 if (process.env.MCP_ENABLED === 'true') {
-  // eslint-disable-next-line @typescript-eslint/no-require-imports
-  const { SilkweaveModule, mcp } = require('@silkweave/nestjs') as typeof import('@silkweave/nestjs');
+  const { SilkweaveModule } = require('@silkweave/nestjs') as typeof import('@silkweave/nestjs');
+  const { mcp } = require('@silkweave/nestjs/mcp') as typeof import('@silkweave/nestjs/mcp');
   mcpModules.push(
     SilkweaveModule.forRoot({
-      silkweave: { name: 'openwa', description: 'OpenWA — self-hosted WhatsApp HTTP API', version: '0.2.3' },
+      silkweave: { name: 'openwa', description: 'OpenWA - self-hosted WhatsApp HTTP API', version: '0.2.3' },
       adapters: [mcp({ basePath: '/mcp' })],
       globalGuards: [ApiKeyGuard],
     }),
@@ -229,7 +230,8 @@ if (dashboardServingEnabled && dashboardBuildPresent) {
     StatusModule, // Phase 3: Status/Stories API
     CatalogModule, // Phase 3: Catalog API (WhatsApp Business)
     PluginsApiModule, // Phase 5: Plugins API
-    ...mcpModules, // Opt-in MCP server (MCP_ENABLED=true) — additive, reflects @Mcp() routes
+    ExtensionsModule, // First-party extension plugins (registered disabled)
+    ...mcpModules, // Opt-in MCP server (MCP_ENABLED=true) - additive, reflects @Mcp() routes
     ...serveStaticModules, // Bundled dashboard SPA (production single-port setup)
   ],
 })

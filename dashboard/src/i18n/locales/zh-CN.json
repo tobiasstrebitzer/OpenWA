@@ -9,6 +9,8 @@
     "edit": "编辑",
     "create": "创建",
     "close": "关闭",
+    "showApiKey": "显示 API 密钥",
+    "hideApiKey": "隐藏 API 密钥",
     "submit": "提交",
     "confirm": "确认",
     "search": "搜索",
@@ -451,7 +453,8 @@
       "messageId": "消息 ID",
       "error": "错误"
     },
-    "sendFailed": "发送消息失败"
+    "sendFailed": "发送消息失败",
+    "notOnWhatsApp": "该号码未在 WhatsApp 注册"
   },
   "infrastructure": {
     "title": "基础设施",
