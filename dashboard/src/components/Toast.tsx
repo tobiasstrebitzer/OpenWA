@@ -1,4 +1,5 @@
 import { createContext, useContext, useState, useCallback, type ReactNode } from 'react';
+import { useTranslation } from 'react-i18next';
 import { CheckCircle, XCircle, AlertCircle, Info, X } from 'lucide-react';
 import './Toast.css';
 
@@ -110,18 +111,24 @@ interface ToastContainerProps {
 }
 
 function ToastContainer({ toasts, removeToast }: ToastContainerProps) {
+  const { t } = useTranslation();
   return (
-    <div className="toast-container">
+    // Persistent live region so screen readers announce toasts as they appear.
+    <div className="toast-container" role="region" aria-live="polite" aria-atomic="false">
       {toasts.map(toast => {
         const Icon = icons[toast.type];
         return (
-          <div key={toast.id} className={`toast toast-${toast.type}`}>
+          <div
+            key={toast.id}
+            className={`toast toast-${toast.type}`}
+            role={toast.type === 'error' || toast.type === 'warning' ? 'alert' : 'status'}
+          >
             <Icon className="toast-icon" size={20} />
             <div className="toast-content">
               <div className="toast-title">{toast.title}</div>
               {toast.message && <div className="toast-message">{toast.message}</div>}
             </div>
-            <button className="toast-close" onClick={() => removeToast(toast.id)}>
+            <button className="toast-close" onClick={() => removeToast(toast.id)} aria-label={t('common.close')}>
               <X size={16} />
             </button>
           </div>

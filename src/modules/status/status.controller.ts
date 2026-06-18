@@ -4,6 +4,8 @@ import { Mcp } from '@silkweave/nestjs';
 import { StatusService } from './status.service';
 import { SendTextStatusDto } from './dto/send-text-status.dto';
 import { SendImageStatusDto, SendVideoStatusDto } from './dto/send-media-status.dto';
+import { RequireRole } from '../auth/decorators/auth.decorators';
+import { ApiKeyRole } from '../auth/entities/api-key.entity';
 
 @ApiTags('Status')
 @Controller('sessions/:sessionId/status')
@@ -25,6 +27,7 @@ export class StatusController {
   }
 
   @Post('send-text')
+  @RequireRole(ApiKeyRole.OPERATOR)
   @ApiOperation({ summary: 'Post a text status' })
   @Mcp()
   async sendTextStatus(@Param('sessionId') sessionId: string, @Body() dto: SendTextStatusDto) {
@@ -35,6 +38,7 @@ export class StatusController {
   }
 
   @Post('send-image')
+  @RequireRole(ApiKeyRole.OPERATOR)
   @ApiOperation({ summary: 'Post an image status' })
   @Mcp()
   async sendImageStatus(@Param('sessionId') sessionId: string, @Body() dto: SendImageStatusDto) {
@@ -42,6 +46,7 @@ export class StatusController {
   }
 
   @Post('send-video')
+  @RequireRole(ApiKeyRole.OPERATOR)
   @ApiOperation({ summary: 'Post a video status' })
   @Mcp()
   async sendVideoStatus(@Param('sessionId') sessionId: string, @Body() dto: SendVideoStatusDto) {
@@ -49,6 +54,7 @@ export class StatusController {
   }
 
   @Delete(':statusId')
+  @RequireRole(ApiKeyRole.OPERATOR)
   @ApiOperation({ summary: 'Delete own status' })
   @Mcp()
   async deleteStatus(@Param('sessionId') sessionId: string, @Param('statusId') statusId: string) {

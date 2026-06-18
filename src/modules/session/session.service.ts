@@ -138,23 +138,42 @@ export class SessionService implements OnModuleDestroy, OnModuleInit, OnApplicat
   }
 
   async onModuleDestroy(): Promise<void> {
-    // Clean up all engines on shutdown
-    for (const [sessionId, engine] of this.engines) {
-      this.logger.log(`Destroying engine for session ${sessionId}`, {
-        sessionId,
-        action: 'shutdown',
-      });
-      await engine.destroy();
-    }
-    this.engines.clear();
-
-    // Clear all reconnect timers
+    // Stop reconnect timers FIRST so nothing reschedules mid-teardown, and so this always runs even
+    // if an engine.destroy() below hangs or throws.
     for (const [, state] of this.reconnectStates) {
       if (state.timer) {
         clearTimeout(state.timer);
       }
     }
     this.reconnectStates.clear();
+
+    // Destroy engines in parallel, each isolated + time-bounded, so one stuck Chromium can neither
+    // stall the shutdown nor abort teardown of the other sessions.
+    await Promise.allSettled(
+      [...this.engines].map(([sessionId, engine]) => this.destroyEngineSafely(sessionId, engine)),
+    );
+    this.engines.clear();
+  }
+
+  /** Destroy one engine, isolating + time-bounding failures so shutdown can't be stalled or aborted. */
+  private async destroyEngineSafely(sessionId: string, engine: IWhatsAppEngine): Promise<void> {
+    this.logger.log(`Destroying engine for session ${sessionId}`, { sessionId, action: 'shutdown' });
+    let timer: ReturnType<typeof setTimeout> | undefined;
+    try {
+      await Promise.race([
+        engine.destroy(),
+        new Promise<never>((_, reject) => {
+          timer = setTimeout(() => reject(new Error('engine.destroy() timed out')), 10_000);
+        }),
+      ]);
+    } catch (err) {
+      this.logger.error(`Failed to destroy engine for session ${sessionId} during shutdown`, String(err), {
+        sessionId,
+        action: 'shutdown_destroy_failed',
+      });
+    } finally {
+      if (timer) clearTimeout(timer);
+    }
   }
 
   async create(dto: CreateSessionDto): Promise<Session> {
@@ -437,7 +456,8 @@ export class SessionService implements OnModuleDestroy, OnModuleInit, OnApplicat
             void this.webhookService.dispatch(id, 'message.received', finalMessage);
             // Emit real-time event to WebSocket clients
             this.eventsGateway.emitMessage(id, finalMessage);
-          });
+          })
+          .catch(err => this.logger.error(`onMessage handler failed for ${id}`, String(err)));
       },
       onMessageCreate: (message): void => {
         // `message_create` fires for every message the account creates, including sends composed on a
@@ -478,7 +498,8 @@ export class SessionService implements OnModuleDestroy, OnModuleInit, OnApplicat
             void this.webhookService.dispatch(id, 'message.sent', finalMessage);
             // Emit real-time event to WebSocket clients (as message.sent, not message.received)
             this.eventsGateway.emitMessageSent(id, finalMessage);
-          });
+          })
+          .catch(err => this.logger.error(`onMessageCreate handler failed for ${id}`, String(err)));
       },
       onMessageAck: (messageId, status: DeliveryStatus): void => {
         this.logger.debug(`Message ack: ${messageId} -> ${status}`, {
@@ -665,6 +686,10 @@ export class SessionService implements OnModuleDestroy, OnModuleInit, OnApplicat
         attempts: state.attempts,
         action: 'reconnect_failed',
       });
+      // Don't leave the session silently stuck DISCONNECTED — mark it terminally FAILED with a reason
+      // so findOne/findAll surface it via `lastError` and the dashboard shows it needs a restart.
+      this.sessionErrors.set(id, `Reconnection failed after ${state.attempts} attempts — restart the session.`);
+      void this.updateStatus(id, SessionStatus.FAILED);
       return;
     }
 

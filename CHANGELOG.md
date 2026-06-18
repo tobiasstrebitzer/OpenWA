@@ -5,6 +5,127 @@ All notable changes to this project will be documented in this file.
 The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.0.0/),
 and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
 
+## [Unreleased]
+
+Adds the Tier-2 plugin capability layer — the foundation for shipping bot-shaped features as extension
+plugins instead of in core (#265).
+
+> ⚠️ **Breaking (plugin API):** `PluginContext.getService` is removed. It was a stub returning `undefined`
+> with no real consumers; out-of-tree plugins must migrate to the new `ctx.messages` / `ctx.engine`
+> capabilities. As a breaking change this is slated for the next minor (v0.3.0).
+
+### Added
+
+- **Plugin capability layer (Tier-2 extension plugins):** scoped `ctx.messages` (`sendText` / `reply`,
+  routed through `MessageService` so persistence and the send pipeline are preserved) and read-only
+  `ctx.engine` (`getGroupInfo` / `getContacts` / `getContactById` / `checkNumberExists` / `getChats`) on
+  `PluginContext`, replacing the stubbed `getService`. A manifest-declared `sessions` scope is enforced at
+  the facade before any engine access (default `['*']`), and a capability call to a dead/unstarted session
+  fails with `PluginCapabilityError` instead of a raw error. (#294)
+- **`HookManager` re-entrancy guard** (`AsyncLocalStorage`): a plugin that sends from inside a hook handler
+  can no longer recurse into the same event (synchronous re-entry; the async `message:sent` echo loop is
+  documented as out of scope for now). (#294)
+- **`auto-reply` reference extension plugin**, first-party and **registered disabled by default** — enable
+  it via `POST /plugins/auto-reply/enable` to exercise the capability layer end-to-end. (#294)
+
+### Changed
+
+- Engine config is now **opaque per-engine**: `EngineFactory` passes only engine-neutral fields
+  (`sessionId`/`proxyUrl`/`proxyType`) to an engine plugin and supplies engine-specific config (Puppeteer
+  for whatsapp-web.js) as a blob via the plugin context, so a non-browser engine can be added without the
+  factory knowing browser fields. No env-var or behavior change for existing deployments. (#296)
+
+## [0.2.10] - 2026-06-17
+
+Completes the v0.2.9 non-breaking batch with three dashboard/CI follow-ups that belonged to the same
+improvement set. No breaking changes.
+
+### Fixed
+
+- **MessageTester (dashboard) resolves the recipient through the engine**, not a hand-built `…@c.us` JID:
+  it calls the check-number endpoint for the engine-canonical chat id and surfaces a clear "not registered
+  on WhatsApp" message for unknown numbers, instead of silently sending to a guessed id (#265). New
+  `messageTester.notOnWhatsApp` string across all 8 locales. (#279)
+- **Dashboard message bubbles use the engine-neutral `MessageType` vocabulary end-to-end** — incoming
+  websocket/revoked payloads are coerced via `asMessageType()`, and an attachment's optimistic bubble is
+  typed from its MIME (e.g. a PDF is `document`, not `application`), matching the backend normalization
+  shipped in #270. (#281)
+
+### Internal
+
+- CI: bump `docker/setup-qemu-action` v3 → v4 (Node 24), clearing the Node-20 deprecation warning on the
+  image-build/publish jobs. (#280)
+
+## [0.2.9] - 2026-06-17
+
+A reliability, security, and accessibility hardening release — no breaking changes. It tightens RBAC on
+write endpoints, patches the `ws`/`qs` advisories, makes the busy message path and graceful shutdown
+crash-resistant, fixes bulk-message terminal status, finally honors `LOG_LEVEL`, adds audit-log and
+webhook-job retention, and improves dashboard accessibility and load-error states.
+
+> ⚠️ **RBAC tightening (action may be required):** write endpoints for groups, contacts, labels, channels,
+> catalog, and status now require the `OPERATOR` role. If you used a `VIEWER` key for any of these writes,
+> switch it to `OPERATOR` (or `ADMIN`). Everything else is backward-compatible.
+
+### Security
+
+- **Write endpoints for groups, contacts, labels, channels, catalog, and status now require the
+  `OPERATOR` role**, closing an unintended privilege gap where a `VIEWER`-role API key could create/leave
+  groups, manage participants, block contacts, post statuses, send products, and mutate labels. Read
+  (`GET`) endpoints remain open to any valid key, matching the message/session controllers. (#284)
+  > ⚠️ If you used a `VIEWER` key for any of these write operations, switch it to `OPERATOR` (or `ADMIN`).
+- Patched a high-severity `ws` advisory (and a moderate `qs` DoS) on the live socket.io transport by
+  bumping in-range deps (`ws`→8.21.0, `engine.io`→6.6.9, `qs`→6.15.2, plus the incidental
+  re-resolutions `npm audit fix` pulled in) in both the API and dashboard. Lockfile-only — no
+  `package.json`/API change. The remaining advisories are build-only (`sqlite3`→`node-gyp`→`tar`)
+  and require a breaking `sqlite3` major, deferred. (#283)
+
+### Added
+
+- **`LOG_LEVEL` is now honored.** It was read into config/compose but never applied (logging was hardcoded
+  to `info`); the level (`error`/`warn`/`info`/`debug`/`verbose`) is now set at bootstrap. (#287)
+- **Automatic audit-log retention.** Audit logs older than `AUDIT_RETENTION_DAYS` (default 90; `0` disables)
+  are pruned daily and once at startup — the existing `cleanup()` was never scheduled, so `audit_logs` grew
+  without bound. (#287)
+
+### Fixed
+
+- **Bulk-message batch status is now correct on cancel and stop-on-error.** A cancelled batch could be
+  silently reverted to `PROCESSING` (the final save overwrote the `CANCELLED` status with the stale
+  in-memory one), and a `stopOnError` abort was reported as `COMPLETED` whenever at least one message had
+  already been sent. The terminal status is now re-derived (cancelled → `CANCELLED` with reconciled
+  counters; stop-on-error → `FAILED`; otherwise `COMPLETED`/`FAILED`). Bulk-message item `type` is also
+  validated against the allowed set (`text`/`image`/`video`/`audio`/`document`) with `@IsIn`, so an invalid
+  type is rejected up front instead of failing mid-send. (#286)
+- **Graceful shutdown is now robust.** `onModuleDestroy` clears reconnect timers first and destroys engines
+  in parallel, each isolated and time-bounded — so one hung/throwing Chromium can no longer abort teardown
+  of the other sessions or stall shutdown. A session that exhausts its reconnect attempts is now marked
+  `FAILED` with a reason (surfaced via `lastError`) instead of sitting silently `DISCONNECTED` forever, and
+  BullMQ webhook jobs are auto-evicted (`removeOnComplete`/`removeOnFail`) so completed/failed job payloads
+  no longer accumulate unbounded in Redis (audit M19). (#287)
+- **Engine-event handlers no longer risk unhandled promise rejections.** Webhook dispatch is now
+  self-contained (a failed webhook lookup is logged and swallowed, not rejected into the fire-and-forget
+  callers), the `onMessage`/`onMessageCreate` hook chains carry a `.catch()`, and a process-level
+  `unhandledRejection` backstop logs (instead of crashing) anything that still slips through. A transient
+  DB hiccup on the busy message path can no longer drop the event silently or take the process down.
+  Audit-log writes are also best-effort: a failed audit insert is logged and swallowed instead of turning
+  an otherwise-successful operation (create/delete/start/stop session, etc.) into a `500`. (#285)
+- **Dashboard accessibility:** toast notifications are now an ARIA live region (`role="region"`/`aria-live`,
+  with `role="alert"` on error/warning toasts) so screen readers announce success/error feedback, and the
+  toast close button has an accessible name. The API-key visibility toggles on the Login and API Keys pages
+  now have state-reflecting `aria-label`s (show/hide). New `common.showApiKey`/`common.hideApiKey` strings
+  across all locales. (#288)
+- **Dashboard no longer shows a misleading "nothing here" empty state when a list fetch fails.** The
+  Webhooks, API Keys, and Logs pages discarded the query error and rendered the empty state on failure;
+  they now surface an accessible error banner (`role="alert"`) so the user knows the data failed to load. (#291)
+
+### Internal
+
+- Added critical-path test coverage for `HookManager`, `AuditService`, and the Postgres-UUID migration
+  (497 tests total). (#289)
+- Dead-code sweep across the backend and dashboard (unused queue name, `MessageResult.ack`, duplicate
+  plugin config, `Skeleton` component, orphaned React Query hooks/keys). (#290)
+
 ## [0.2.8] - 2026-06-17
 
 The engine-pluggability release: the whatsapp-web.js delivery-ack, message-type, and JID specifics are

@@ -12,7 +12,6 @@ export enum EngineStatus {
 export interface MessageResult {
   id: string;
   timestamp: number;
-  ack?: number;
 }
 
 export interface MediaInput {

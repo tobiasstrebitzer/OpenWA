@@ -9,6 +9,8 @@
     "edit": "Modifica",
     "create": "Crea",
     "close": "Chiudi",
+    "showApiKey": "Mostra la chiave API",
+    "hideApiKey": "Nascondi la chiave API",
     "submit": "Invia",
     "confirm": "Conferma",
     "search": "Cerca",
@@ -451,7 +453,8 @@
       "messageId": "ID Messaggio",
       "error": "Errore"
     },
-    "sendFailed": "Impossibile inviare il messaggio"
+    "sendFailed": "Impossibile inviare il messaggio",
+    "notOnWhatsApp": "Questo numero non è registrato su WhatsApp"
   },
   "infrastructure": {
     "title": "Infrastruttura",

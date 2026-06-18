@@ -3,6 +3,8 @@ import { ApiTags, ApiOperation } from '@nestjs/swagger';
 import { Mcp } from '@silkweave/nestjs';
 import { CatalogService } from './catalog.service';
 import { SendProductDto, SendCatalogDto, ProductQueryDto } from './dto/send-product.dto';
+import { RequireRole } from '../auth/decorators/auth.decorators';
+import { ApiKeyRole } from '../auth/entities/api-key.entity';
 
 @ApiTags('Catalog')
 @Controller('sessions/:sessionId')
@@ -31,6 +33,7 @@ export class CatalogController {
   }
 
   @Post('messages/send-product')
+  @RequireRole(ApiKeyRole.OPERATOR)
   @ApiOperation({ summary: 'Send a product message' })
   @Mcp()
   async sendProduct(@Param('sessionId') sessionId: string, @Body() dto: SendProductDto) {
@@ -38,6 +41,7 @@ export class CatalogController {
   }
 
   @Post('messages/send-catalog')
+  @RequireRole(ApiKeyRole.OPERATOR)
   @ApiOperation({ summary: 'Send catalog link' })
   @Mcp()
   async sendCatalog(@Param('sessionId') sessionId: string, @Body() dto: SendCatalogDto) {

@@ -4,6 +4,7 @@ import { SwaggerModule } from '@nestjs/swagger';
 import helmet from 'helmet';
 import { AppModule } from './app.module';
 import { ShutdownService } from './common/services/shutdown.service';
+import { LoggerService, LogLevel, createLogger } from './common/services/logger.service';
 import { createSwaggerConfig } from './config/swagger.config';
 import {
   resolveCorsPolicy,
@@ -75,6 +76,20 @@ STORAGE_PATH=./data/media
 }
 
 async function bootstrap() {
+  // Apply the operator-configured log verbosity (LOG_LEVEL) before anything logs. Unset/invalid → INFO.
+  const requestedLevel = process.env.LOG_LEVEL?.trim().toLowerCase();
+  if (requestedLevel && (Object.values(LogLevel) as string[]).includes(requestedLevel)) {
+    LoggerService.setLogLevel(requestedLevel as LogLevel);
+  }
+
+  // Backstop for promise rejections that escaped a local handler (e.g. a fire-and-forget engine-event
+  // dispatch). Node terminates the process on an unhandled rejection by default; for a long-running
+  // self-hosted gateway we'd rather log it and stay up than let one stray rejection kill all sessions.
+  const bootstrapLogger = createLogger('Bootstrap');
+  process.on('unhandledRejection', (reason: unknown) => {
+    bootstrapLogger.error('Unhandled promise rejection', reason instanceof Error ? reason.stack : String(reason));
+  });
+
   // Fail fast: never start production with default/placeholder secrets.
   assertNoDefaultSecretsInProduction({
     nodeEnv: process.env.NODE_ENV,

@@ -9,6 +9,8 @@
     "edit": "Edit",
     "create": "Create",
     "close": "Close",
+    "showApiKey": "Show API key",
+    "hideApiKey": "Hide API key",
     "submit": "Submit",
     "confirm": "Confirm",
     "search": "Search",
@@ -451,7 +453,8 @@
       "messageId": "Message ID",
       "error": "Error"
     },
-    "sendFailed": "Failed to send message"
+    "sendFailed": "Failed to send message",
+    "notOnWhatsApp": "This number is not registered on WhatsApp"
   },
   "infrastructure": {
     "title": "Infrastructure",

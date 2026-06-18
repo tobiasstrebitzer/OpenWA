@@ -9,6 +9,8 @@
     "edit": "ఎడిట్ చేయి",
     "create": "సృష్టించు",
     "close": "మూసివేయి",
+    "showApiKey": "API కీని చూపు",
+    "hideApiKey": "API కీని దాచు",
     "submit": "సమర్పించు",
     "confirm": "ధృవీకరించు",
     "search": "వెతుకు",
@@ -451,7 +453,8 @@
       "messageId": "సందేశం ID",
       "error": "లోపం"
     },
-    "sendFailed": "సందేశాన్ని పంపడం విఫలమైంది"
+    "sendFailed": "సందేశాన్ని పంపడం విఫలమైంది",
+    "notOnWhatsApp": "ఈ నంబర్ WhatsAppలో నమోదు కాలేదు"
   },
   "infrastructure": {
     "title": "ఇన్‌ఫ్రాస్ట్రక్చర్",

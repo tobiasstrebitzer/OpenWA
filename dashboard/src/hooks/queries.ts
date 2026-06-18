@@ -17,7 +17,6 @@ export const queryKeys = {
   sessions: ['sessions'] as const,
   sessionStats: ['sessions', 'stats'] as const,
   sessionGroups: (sessionId: string) => ['sessions', sessionId, 'groups'] as const,
-  sessionChats: (sessionId: string) => ['sessions', sessionId, 'chats'] as const,
   webhooks: ['webhooks'] as const,
   templates: (sessionId: string) => ['sessions', sessionId, 'templates'] as const,
   apiKeys: ['apiKeys'] as const,
@@ -53,47 +52,6 @@ export function useSessionGroupsQuery(sessionId: string, enabled: boolean) {
     queryFn: () => sessionApi.getGroups(sessionId),
     enabled: enabled && !!sessionId,
     staleTime: 60_000,
-  });
-}
-
-export function useSessionChatsQuery(sessionId: string, enabled: boolean) {
-  return useQuery({
-    queryKey: queryKeys.sessionChats(sessionId),
-    queryFn: () => sessionApi.getChats(sessionId),
-    enabled: enabled && !!sessionId,
-    staleTime: 10_000,
-  });
-}
-
-export function useCreateSessionMutation() {
-  const queryClient = useQueryClient();
-  return useMutation({
-    mutationFn: (name: string) => sessionApi.create(name),
-    onSuccess: () => {
-      void queryClient.invalidateQueries({ queryKey: queryKeys.sessions });
-      void queryClient.invalidateQueries({ queryKey: queryKeys.sessionStats });
-    },
-  });
-}
-
-export function useDeleteSessionMutation() {
-  const queryClient = useQueryClient();
-  return useMutation({
-    mutationFn: (id: string) => sessionApi.delete(id),
-    onSuccess: () => {
-      void queryClient.invalidateQueries({ queryKey: queryKeys.sessions });
-      void queryClient.invalidateQueries({ queryKey: queryKeys.sessionStats });
-    },
-  });
-}
-
-export function useStartSessionMutation() {
-  const queryClient = useQueryClient();
-  return useMutation({
-    mutationFn: (id: string) => sessionApi.start(id),
-    onSuccess: () => {
-      void queryClient.invalidateQueries({ queryKey: queryKeys.sessions });
-    },
   });
 }
 

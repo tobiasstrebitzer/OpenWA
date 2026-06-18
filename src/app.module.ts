@@ -30,6 +30,7 @@ import { HooksModule } from './core/hooks';
 import { PluginsModule } from './core/plugins';
 import { PluginsApiModule } from './modules/plugins/plugins.module';
 import { ApiKeyGuard } from './modules/auth/guards/api-key.guard';
+import { ExtensionsModule } from './plugins/extensions/extensions.module';
 
 // Only import QueueModule if explicitly enabled to avoid Redis connection errors
 const queueModules: Array<Type | DynamicModule> = [];
@@ -205,7 +206,8 @@ if (process.env.MCP_ENABLED === 'true') {
     StatusModule, // Phase 3: Status/Stories API
     CatalogModule, // Phase 3: Catalog API (WhatsApp Business)
     PluginsApiModule, // Phase 5: Plugins API
-    ...mcpModules, // Opt-in MCP server (MCP_ENABLED=true) — additive, reflects @Mcp() routes
+    ExtensionsModule, // First-party extension plugins (registered disabled)
+    ...mcpModules, // Opt-in MCP server (MCP_ENABLED=true) - additive, reflects @Mcp() routes
   ],
 })
 export class AppModule {}
