@@ -49,11 +49,11 @@ if (process.env.QUEUE_ENABLED === 'true') {
 // otherwise applied to Silkweave's raw routes). See @Mcp() usage in the controllers.
 const mcpModules: Array<Type | DynamicModule> = [];
 if (process.env.MCP_ENABLED === 'true') {
-  // eslint-disable-next-line @typescript-eslint/no-require-imports
-  const { SilkweaveModule, mcp } = require('@silkweave/nestjs') as typeof import('@silkweave/nestjs');
+  const { SilkweaveModule } = require('@silkweave/nestjs') as typeof import('@silkweave/nestjs');
+  const { mcp } = require('@silkweave/nestjs/mcp') as typeof import('@silkweave/nestjs/mcp');
   mcpModules.push(
     SilkweaveModule.forRoot({
-      silkweave: { name: 'openwa', description: 'OpenWA — self-hosted WhatsApp HTTP API', version: '0.2.3' },
+      silkweave: { name: 'openwa', description: 'OpenWA - self-hosted WhatsApp HTTP API', version: '0.2.3' },
       adapters: [mcp({ basePath: '/mcp' })],
       globalGuards: [ApiKeyGuard],
     }),
