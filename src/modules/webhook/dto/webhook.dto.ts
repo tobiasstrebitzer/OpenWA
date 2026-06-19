@@ -15,6 +15,17 @@ import {
 } from 'class-validator';
 import { Expose, plainToInstance } from 'class-transformer';
 import { Webhook } from '../entities/webhook.entity';
+import { WebhookFilters } from '../filters/filter-types';
+import { IsValidWebhookFilters } from '../filters/filter-validation';
+
+const FILTERS_API_DESCRIPTION =
+  'Optional smart pre-filter. When set, every condition must match (AND) for the webhook to fire. Omit or null to fire on every subscribed event.';
+const FILTERS_API_EXAMPLE = {
+  conditions: [
+    { field: 'sender', operator: 'is', value: ['1234567890@c.us'] },
+    { field: 'body', operator: 'contains', value: 'invoice' },
+  ],
+};
 
 export const WEBHOOK_EVENTS = [
   'message.received',
@@ -38,7 +49,9 @@ export class CreateWebhookDto {
     description: 'Webhook URL to receive events',
     example: 'https://your-server.com/webhook',
   })
-  @IsUrl()
+  // require_tld:false allows hostnames without a dot (e.g. http://localhost:3000); the SSRF
+  // guard still decides whether the host is actually allowed to be delivered to.
+  @IsUrl({ require_tld: false })
   url: string;
 
   @ApiPropertyOptional({
@@ -70,6 +83,11 @@ export class CreateWebhookDto {
   @IsObject()
   headers?: Record<string, string>;
 
+  @ApiPropertyOptional({ description: FILTERS_API_DESCRIPTION, example: FILTERS_API_EXAMPLE })
+  @IsOptional()
+  @IsValidWebhookFilters()
+  filters?: WebhookFilters | null;
+
   @ApiPropertyOptional({
     description: 'Number of retry attempts on failure',
     example: 3,
@@ -86,7 +104,7 @@ export class CreateWebhookDto {
 export class UpdateWebhookDto {
   @ApiPropertyOptional({ description: 'Webhook URL' })
   @IsOptional()
-  @IsUrl()
+  @IsUrl({ require_tld: false })
   url?: string;
 
   @ApiPropertyOptional({ description: "Event types to subscribe to. '*' subscribes to all events." })
@@ -106,6 +124,11 @@ export class UpdateWebhookDto {
   @IsOptional()
   @IsObject()
   headers?: Record<string, string>;
+
+  @ApiPropertyOptional({ description: FILTERS_API_DESCRIPTION, example: FILTERS_API_EXAMPLE })
+  @IsOptional()
+  @IsValidWebhookFilters()
+  filters?: WebhookFilters | null;
 
   @ApiPropertyOptional({ description: 'Enable/disable webhook' })
   @IsOptional()
@@ -145,6 +168,10 @@ export class WebhookResponseDto {
   @Expose()
   @ApiProperty()
   events: string[];
+
+  @Expose()
+  @ApiPropertyOptional({ description: FILTERS_API_DESCRIPTION, example: FILTERS_API_EXAMPLE })
+  filters?: WebhookFilters | null;
 
   @Expose()
   @ApiProperty()

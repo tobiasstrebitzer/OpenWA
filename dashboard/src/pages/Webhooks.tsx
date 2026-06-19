@@ -12,19 +12,25 @@ import {
   Check,
   AlertTriangle,
   AlertCircle,
+  Filter,
 } from 'lucide-react';
-import { webhookApi, type Webhook } from '../services/api';
+import { webhookApi, type Webhook, type WebhookFilters } from '../services/api';
 import { useDocumentTitle } from '../hooks/useDocumentTitle';
 import { useRole } from '../hooks/useRole';
 import {
   useWebhooksQuery,
   useSessionsQuery,
+  useSessionChatsQuery,
   useCreateWebhookMutation,
   useUpdateWebhookMutation,
   useDeleteWebhookMutation,
 } from '../hooks/queries';
 import { PageHeader } from '../components/PageHeader';
+import { FilterBuilder } from '../components/FilterBuilder';
 import './Webhooks.css';
+
+// Filters only apply to message.* events (the wildcard subscribes to them too).
+const supportsFilters = (events: string[]) => events.some(e => e === '*' || e.startsWith('message.'));
 
 // Must stay aligned with the backend WEBHOOK_EVENTS: the API now rejects unknown
 // event names, so offering e.g. the never-emitted 'session.connected' would 400 on save.
@@ -59,9 +65,18 @@ export function Webhooks() {
   const [showDeleteModal, setShowDeleteModal] = useState(false);
   const [deleteTarget, setDeleteTarget] = useState<{ sessionId: string; id: string; url: string } | null>(null);
   const [editWebhook, setEditWebhook] = useState<Webhook | null>(null);
-  const [newWebhook, setNewWebhook] = useState({ url: '', events: ['message.received'], sessionId: '' });
+  const [newWebhook, setNewWebhook] = useState<{
+    url: string;
+    events: string[];
+    sessionId: string;
+    filters: WebhookFilters | null;
+  }>({ url: '', events: ['message.received'], sessionId: '', filters: null });
   const [testingId, setTestingId] = useState<string | null>(null);
   const [toast, setToast] = useState<{ type: 'success' | 'error'; message: string } | null>(null);
+
+  // Single source for the contact/group autocomplete in whichever modal is open.
+  const activeSessionId = showEditModal ? editWebhook?.sessionId ?? '' : newWebhook.sessionId;
+  const { data: chats = [] } = useSessionChatsQuery(activeSessionId, showCreateModal || showEditModal);
 
   const eventDescription = (name: string) => {
     if (name === '*') return t('webhooks.eventDescriptions.all');
@@ -82,9 +97,10 @@ export function Webhooks() {
         sessionId: newWebhook.sessionId,
         url: newWebhook.url,
         events: newWebhook.events,
+        filters: newWebhook.filters,
       });
       setShowCreateModal(false);
-      setNewWebhook({ url: '', events: ['message.received'], sessionId: '' });
+      setNewWebhook({ url: '', events: ['message.received'], sessionId: '', filters: null });
       setToast({ type: 'success', message: t('webhooks.toasts.created') });
     } catch (err) {
       setToast({
@@ -153,7 +169,12 @@ export function Webhooks() {
       await updateMutation.mutateAsync({
         sessionId: editWebhook.sessionId,
         id: editWebhook.id,
-        data: { url: editWebhook.url, events: editWebhook.events, active: editWebhook.active },
+        data: {
+          url: editWebhook.url,
+          events: editWebhook.events,
+          active: editWebhook.active,
+          filters: editWebhook.filters ?? null,
+        },
       });
       setShowEditModal(false);
       setEditWebhook(null);
@@ -258,7 +279,7 @@ export function Webhooks() {
                 onChange={e => setNewWebhook({ ...newWebhook, url: e.target.value })}
               />
               <label>{t('webhooks.events')}</label>
-              <div style={{ display: 'flex', flexWrap: 'wrap', gap: '0.5rem' }}>
+              <div className="event-tags">
                 {availableEventNames.map(name => (
                   <button
                     key={name}
@@ -270,6 +291,13 @@ export function Webhooks() {
                   </button>
                 ))}
               </div>
+              {supportsFilters(newWebhook.events) && (
+                <FilterBuilder
+                  filters={newWebhook.filters}
+                  onChange={filters => setNewWebhook(prev => ({ ...prev, filters }))}
+                  chats={chats}
+                />
+              )}
             </div>
             <div className="modal-footer">
               <button className="btn-secondary" onClick={() => setShowCreateModal(false)}>
@@ -300,7 +328,7 @@ export function Webhooks() {
                 onChange={e => setEditWebhook({ ...editWebhook, url: e.target.value })}
               />
               <label>{t('webhooks.events')}</label>
-              <div style={{ display: 'flex', flexWrap: 'wrap', gap: '0.5rem' }}>
+              <div className="event-tags">
                 {availableEventNames.map(name => (
                   <button
                     key={name}
@@ -312,6 +340,13 @@ export function Webhooks() {
                   </button>
                 ))}
               </div>
+              {supportsFilters(editWebhook.events) && (
+                <FilterBuilder
+                  filters={editWebhook.filters}
+                  onChange={filters => setEditWebhook(prev => (prev ? { ...prev, filters } : prev))}
+                  chats={chats}
+                />
+              )}
               <div className="toggle-group">
                 <span className="toggle-label">{t('common.status')}</span>
                 <label className="toggle-switch">
@@ -441,6 +476,12 @@ export function Webhooks() {
                               {event}
                             </span>
                           ))}
+                          {webhook.filters?.conditions?.length ? (
+                            <span className="filter-badge" title={t('webhooks.filters.title')}>
+                              <Filter size={12} />
+                              {t('webhooks.filters.badge', { count: webhook.filters.conditions.length })}
+                            </span>
+                          ) : null}
                         </div>
                       </div>
                     </div>

@@ -2,12 +2,13 @@ import { Processor, WorkerHost } from '@nestjs/bullmq';
 import { Job } from 'bullmq';
 import { InjectRepository } from '@nestjs/typeorm';
 import { Repository } from 'typeorm';
+import { ConfigService } from '@nestjs/config';
 import { createLogger } from '../../../common/services/logger.service';
 import { QUEUE_NAMES } from '../queue-names';
-import { WebhookJobData } from '../../webhook/webhook.service';
+import { WebhookJobData } from '../../webhook/interfaces/webhook-payload.interface';
 import { Webhook } from '../../webhook/entities/webhook.entity';
 import { HookManager } from '../../../core/hooks';
-import { assertSafeFetchUrl, assertNoRedirect, isSsrfProtectionEnabled } from '../../../common/security/ssrf-guard';
+import { sendGuardedWebhook } from '../../webhook/delivery/webhook-sender';
 
 export interface WebhookJobResult {
   statusCode: number;
@@ -24,6 +25,7 @@ export class WebhookProcessor extends WorkerHost {
     @InjectRepository(Webhook, 'data')
     private readonly webhookRepository: Repository<Webhook>,
     private readonly hookManager: HookManager,
+    private readonly configService: ConfigService,
   ) {
     super();
   }
@@ -48,21 +50,12 @@ export class WebhookProcessor extends WorkerHost {
       'X-OpenWA-Retry-Count': String(job.attemptsMade),
     };
 
-    const ssrfProtected = isSsrfProtectionEnabled();
     try {
-      if (ssrfProtected) {
-        await assertSafeFetchUrl(url);
-      }
-      const response = await fetch(url, {
-        method: 'POST',
+      const response = await sendGuardedWebhook(url, {
         headers: requestHeaders,
         body: JSON.stringify(payload),
-        signal: AbortSignal.timeout(10000),
-        redirect: ssrfProtected ? 'manual' : 'follow',
+        timeoutMs: this.configService.get<number>('webhook.timeout', 10000),
       });
-      if (ssrfProtected) {
-        assertNoRedirect(response, url);
-      }
 
       const responseTime = Date.now() - startTime;
       const success = response.ok;

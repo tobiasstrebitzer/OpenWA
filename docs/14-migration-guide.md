@@ -815,7 +815,7 @@ breaking_changes:
     - Rate limiting enforced
 
   config:
-    - ENGINE_TYPE required (default: whatsapp-web.js)
+    - ENGINE_TYPE required (default: whatsapp-web.js; also accepts: baileys)
     - STORAGE_ADAPTER required (default: local)
 
   database:
@@ -874,7 +874,7 @@ echo "⚙️ Updating configuration..."
 cat >> .env << 'EOF'
 
 # New in v1.0
-ENGINE_TYPE=whatsapp-web.js
+ENGINE_TYPE=whatsapp-web.js  # default (Chromium-based); set to "baileys" for browser-free engine
 STORAGE_ADAPTER=local
 CACHE_ADAPTER=memory
 

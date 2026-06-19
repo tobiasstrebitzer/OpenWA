@@ -1,6 +1,6 @@
 {
   "name": "openwa",
-  "version": "0.2.10",
+  "version": "0.4.1",
   "description": "Open Source WhatsApp API Gateway - Free, Self-Hosted HTTP API for WhatsApp",
   "author": "Yudhi Armyndharis & OpenWA Contributors",
   "private": true,
@@ -57,6 +57,7 @@
     "@silkweave/core": "^2.6.0",
     "@silkweave/mcp": "^2.6.0",
     "@silkweave/nestjs": "^2.6.0",
+    "@whiskeysockets/baileys": "6.7.23",
     "archiver": "^8.0.0",
     "bullmq": "^5.78.1",
     "class-transformer": "^0.5.1",
@@ -115,7 +116,20 @@
     "rootDir": "src",
     "testRegex": ".*\\.spec\\.ts$",
     "transform": {
-      "^.+\\.(t|j)s$": "ts-jest"
+      "^.+\\.(t|j)s$": [
+        "ts-jest",
+        {
+          "tsconfig": {
+            "module": "CommonJS",
+            "moduleResolution": "node",
+            "resolvePackageJsonExports": false
+          }
+        }
+      ]
+    },
+    "moduleNameMapper": {
+      "^@whiskeysockets/baileys$": "<rootDir>/../test/__mocks__/@whiskeysockets/baileys.ts",
+      "^@whiskeysockets/baileys/(.*)$": "<rootDir>/../test/__mocks__/@whiskeysockets/baileys.ts"
     },
     "moduleNameMapper": {
       "^@silkweave/nestjs$": "<rootDir>/../test/mocks/silkweave-nestjs.ts"

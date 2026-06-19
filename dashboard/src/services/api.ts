@@ -38,11 +38,25 @@ export interface SessionStats {
   memoryUsage: { heapUsed: number; heapTotal: number; rss: number };
 }
 
+export type WebhookFilterOperator = 'is' | 'isNot' | 'contains' | 'equals' | 'matches';
+
+export interface WebhookFilterCondition {
+  field: string;
+  operator: WebhookFilterOperator;
+  value: string | string[] | boolean;
+  caseSensitive?: boolean;
+}
+
+export interface WebhookFilters {
+  conditions: WebhookFilterCondition[];
+}
+
 export interface Webhook {
   id: string;
   sessionId: string;
   url: string;
   events: string[];
+  filters?: WebhookFilters | null;
   active: boolean;
   secret?: string;
   createdAt: string;
@@ -341,7 +355,7 @@ export const webhookApi = {
   listBySession: (sessionId: string) => request<Webhook[]>(`/sessions/${sessionId}/webhooks`),
   listAll: () => request<Webhook[]>('/webhooks'),
   get: (sessionId: string, id: string) => request<Webhook>(`/sessions/${sessionId}/webhooks/${id}`),
-  create: (sessionId: string, data: { url: string; events: string[] }) =>
+  create: (sessionId: string, data: { url: string; events: string[]; filters?: WebhookFilters | null }) =>
     request<Webhook>(`/sessions/${sessionId}/webhooks`, {
       method: 'POST',
       body: JSON.stringify(data),
@@ -557,6 +571,22 @@ export const settingsApi = {
 // Plugin Types
 // =============================================================================
 
+/** Field definition within a plugin's config schema (mirrors the backend PluginConfigSchema). */
+export interface PluginConfigField {
+  type: 'string' | 'number' | 'boolean' | 'array' | 'object';
+  title?: string;
+  description?: string;
+  default?: unknown;
+  enum?: unknown[];
+  required?: boolean;
+  secret?: boolean;
+}
+
+export interface PluginConfigSchema {
+  type: 'object';
+  properties: Record<string, PluginConfigField>;
+}
+
 export interface Plugin {
   id: string;
   name: string;
@@ -568,6 +598,8 @@ export interface Plugin {
   config: Record<string, unknown>;
   builtIn: boolean;
   provides: string[];
+  /** Declared config fields, when the plugin exposes a schema (drives the dashboard config form). */
+  configSchema?: PluginConfigSchema;
   loadedAt?: string;
   enabledAt?: string;
   error?: string;

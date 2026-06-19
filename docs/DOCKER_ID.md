@@ -91,8 +91,9 @@ Berikut variabel penting yang bisa disesuaikan di `.env`:
 | `API_PORT` | `2785` | Port REST API sekaligus Dashboard UI (disajikan oleh NestJS). |
 | `DATABASE_TYPE` | `sqlite` | Jenis database yang digunakan (`sqlite` atau `postgres`). |
 | `DATABASE_NAME` | `/app/data/openwa.sqlite` | Lokasi database SQLite atau nama database PostgreSQL. |
-| `ENGINE_TYPE` | `whatsapp-web.js` | Driver/mesin engine WhatsApp yang digunakan. |
-| `PUPPETEER_HEADLESS` | `true` | Menjalankan browser WhatsApp secara tersembunyi. |
+| `ENGINE_TYPE` | `whatsapp-web.js` | Driver/mesin engine WhatsApp yang digunakan (`whatsapp-web.js` default, berbasis Chromium; atau `baileys`, tanpa browser). |
+| `SERVE_DASHBOARD` | `true` | Sajikan Dashboard UI dari port API yang sama. Set `false` untuk menonaktifkan penyajian static files. |
+| `PUPPETEER_HEADLESS` | `true` | Menjalankan browser WhatsApp secara tersembunyi (hanya berlaku untuk engine `whatsapp-web.js`). |
 
 ---
 

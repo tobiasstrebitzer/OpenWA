@@ -17,7 +17,7 @@
 
 <p align="center">
   <a href="https://github.com/rmyndharis/OpenWA/actions/workflows/ci.yml"><img src="https://github.com/rmyndharis/OpenWA/actions/workflows/ci.yml/badge.svg?branch=main" alt="CI"/></a>
-  <img src="https://img.shields.io/badge/version-0.2.10-blue.svg" alt="Version"/>
+  <img src="https://img.shields.io/badge/version-0.4.0-blue.svg" alt="Version"/>
   <img src="https://img.shields.io/badge/license-MIT-green.svg" alt="License"/>
   <img src="https://img.shields.io/badge/node-22_LTS-brightgreen.svg" alt="Node"/>
   <img src="https://img.shields.io/badge/NestJS-11.x-red.svg" alt="NestJS"/>
@@ -296,7 +296,7 @@ MCP_ENABLED=true npm run start:dev
 | **Runtime**   | Node.js 22 LTS          |
 | **Framework** | NestJS 11.x             |
 | **Language**  | TypeScript 5.x          |
-| **WA Engine** | whatsapp-web.js         |
+| **WA Engine** | whatsapp-web.js (default) / baileys — set `ENGINE_TYPE` |
 | **Database**  | SQLite / PostgreSQL     |
 | **Cache**     | Redis (optional)        |
 | **Storage**   | Local / S3 / MinIO      |

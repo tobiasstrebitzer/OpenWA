@@ -57,6 +57,8 @@ export interface IncomingMessage {
   isStatusBroadcast?: boolean;
   /** For group messages, the WID of the participant who actually sent it (`from` is the group JID there). */
   author?: string;
+  /** WIDs @mentioned in the message (empty/absent when none). Surfaced for command targeting. */
+  mentionedIds?: string[];
   /**
    * Set by the adapter when the sender is identified by a privacy id (e.g. a WhatsApp `@lid`) rather
    * than a phone number, so engine-neutral code can decide whether to attempt phone resolution without

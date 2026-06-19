@@ -16,7 +16,7 @@
 </p>
 
 <p align="center">
-  <img src="https://img.shields.io/badge/version-0.2.10-blue.svg" alt="Version"/>
+  <img src="https://img.shields.io/badge/version-0.4.0-blue.svg" alt="Version"/>
   <img src="https://img.shields.io/badge/license-MIT-green.svg" alt="License"/>
   <img src="https://img.shields.io/badge/node-22_LTS-brightgreen.svg" alt="Node"/>
   <img src="https://img.shields.io/badge/NestJS-11.x-red.svg" alt="NestJS"/>
@@ -181,16 +181,18 @@ socket.on('message', msg => {
 | Audit Logging                   | Ready                         |
 | Groups / Contacts / Labels API  | Ready                         |
 | Channels / Status / Catalog API | Experimental (engine-limited) |
+| Pluggable Engine (wwebjs / Baileys) | Ready (set `ENGINE_TYPE`)  |
+| Plugin Extension System         | Ready                         |
 | Queue-based Webhook Retries     | Optional (QUEUE_ENABLED=true) |
 
 ## Tech Stack
 
 | Layer     | Technology                    |
 | --------- | ----------------------------- |
-| Runtime   | Node.js 20 LTS                |
+| Runtime   | Node.js 22 LTS                |
 | Framework | NestJS 11.x                   |
 | Language  | TypeScript 5.x                |
-| WA Engine | whatsapp-web.js               |
+| WA Engine | Pluggable (`ENGINE_TYPE`): whatsapp-web.js (default) or Baileys |
 | WebSocket | Socket.IO                     |
 | Database  | SQLite (default) / PostgreSQL |
 | ORM       | TypeORM                       |
@@ -223,6 +225,6 @@ MIT License.
 
 **Start Reading: [01 - Project Overview](./01-project-overview.md)**
 
-_OpenWA Documentation · Last updated: 2026-02-05_
+_OpenWA Documentation · Last updated: 2026-06-18_
 
 </div>

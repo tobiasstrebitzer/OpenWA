@@ -95,7 +95,7 @@ Start workflows when WhatsApp events occur.
   "timestamp": "2024-01-15T10:30:00Z",
   "sessionId": "default",
   "data": {
-    "messageId": "3EB0F5A2B4C...",
+    "id": "3EB0F5A2B4C...",
     "chatId": "628123456789@c.us",
     "from": "628123456789@c.us",
     "body": "Hello!",
@@ -170,6 +170,24 @@ Send daily reminders to a list of contacts.
 [Schedule Trigger] → [Google Sheets: Get Rows] → [Loop] → [OpenWA: Send Text]
      │                      │                                    │
      └── Daily 9AM          └── Get contacts                     └── Send reminder
+```
+
+### 6. Appointment Booking
+
+Collect appointment requests over WhatsApp, check availability in an external scheduling source, and send a confirmation or alternative time slots.
+
+See [n8n Appointment Booking Workflow](./examples/n8n-appointment-booking.md) for a complete example.
+
+```
+[OpenWA Trigger] → [IF: Booking intent?] → [Set: Normalize request]
+                                               │
+                                               ▼
+                                      [Availability Source]
+                                               │
+                         ┌─────────────────────┴─────────────────────┐
+                         ▼                                           ▼
+              [Create Booking] → [OpenWA: Send Text]      [OpenWA: Send Text]
+                  confirmed confirmation                  alternative slots
 ```
 
 ## Best Practices
@@ -272,6 +290,7 @@ docker run -it --rm \
 
 - [OpenWA API Specification](./06-api-specification.md)
 - [Webhook System](./03-system-architecture.md#webhooks)
+- [n8n Appointment Booking Workflow](./examples/n8n-appointment-booking.md)
 - [n8n Documentation](https://docs.n8n.io/)
 
 ---

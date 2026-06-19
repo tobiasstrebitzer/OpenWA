@@ -1,9 +1,10 @@
 import { Job } from 'bullmq';
 import { Repository } from 'typeorm';
+import { ConfigService } from '@nestjs/config';
 import { WebhookProcessor } from './webhook.processor';
 import { Webhook } from '../../webhook/entities/webhook.entity';
 import { HookManager } from '../../../core/hooks';
-import { WebhookJobData } from '../../webhook/webhook.service';
+import { WebhookJobData } from '../../webhook/interfaces/webhook-payload.interface';
 
 /**
  * Regression coverage for the production (QUEUE_ENABLED) webhook delivery path, which was
@@ -44,7 +45,12 @@ describe('WebhookProcessor', () => {
   beforeEach(() => {
     repo = { update: jest.fn().mockResolvedValue({ affected: 1 }) };
     hookManager = { execute: jest.fn().mockResolvedValue({ continue: true, data: {} }) };
-    processor = new WebhookProcessor(repo as unknown as Repository<Webhook>, hookManager as unknown as HookManager);
+    const configService = { get: jest.fn().mockReturnValue(10000) };
+    processor = new WebhookProcessor(
+      repo as unknown as Repository<Webhook>,
+      hookManager as unknown as HookManager,
+      configService as unknown as ConfigService,
+    );
     mockFetch = jest.fn();
     global.fetch = mockFetch as typeof global.fetch;
     process.env.WEBHOOK_SSRF_PROTECT = 'false'; // delivery-logic tests; redirect test flips it on
