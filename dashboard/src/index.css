@@ -203,7 +203,7 @@ select:disabled {
   padding: 1.5rem;
 }
 
-.modal-body label {
+.modal-body > label {
   display: block;
   font-size: 0.875rem;
   font-weight: 600;
