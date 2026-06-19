@@ -11,7 +11,8 @@ import { Repository } from 'typeorm';
 import { NotFoundException, BadRequestException } from '@nestjs/common';
 import { ConfigService } from '@nestjs/config';
 import * as crypto from 'crypto';
-import { WebhookService, WebhookPayload } from './webhook.service';
+import { WebhookService } from './webhook.service';
+import { WebhookPayload } from './interfaces/webhook-payload.interface';
 import { Webhook } from './entities/webhook.entity';
 import { HookManager } from '../../core/hooks';
 import { QUEUE_NAMES } from '../queue/queue-names';
@@ -25,6 +26,7 @@ function createMockWebhook(overrides: Partial<Webhook> = {}): Webhook {
     events: ['message.received'],
     secret: null,
     headers: {},
+    filters: null,
     active: true,
     retryCount: 3,
     lastTriggeredAt: null,
@@ -244,9 +246,12 @@ describe('WebhookService', () => {
     });
 
     it('resolves (never rejects) when the webhook lookup fails — callers fire-and-forget it', async () => {
+      const errorLog = jest.spyOn(console, 'error').mockImplementation(() => {});
       (repository.find as jest.Mock).mockRejectedValue(new Error('db down'));
       await expect(service.dispatch('sess-1', 'message.received', { x: 1 })).resolves.toBeUndefined();
       expect(mockFetch).not.toHaveBeenCalled();
+      expect(errorLog).toHaveBeenCalled(); // the swallowed failure is logged, not silent
+      errorLog.mockRestore();
     });
 
     it('should dispatch to webhooks matching the event', async () => {
@@ -328,6 +333,7 @@ describe('WebhookService', () => {
     });
   });
 
+
   // ── custom-header sanitization ───────────────────────────────
 
   describe('custom header merge', () => {
@@ -386,6 +392,7 @@ describe('WebhookService', () => {
     });
 
     it('does NOT follow a redirect and treats it as a delivery failure when protection is on', async () => {
+      const errorLog = jest.spyOn(console, 'error').mockImplementation(() => {});
       // Public literal IP → assertSafeFetchUrl passes with no DNS lookup; retryCount:1 → no retry loop.
       const webhook = createMockWebhook({
         url: 'https://8.8.8.8/webhook',
@@ -418,6 +425,8 @@ describe('WebhookService', () => {
       );
       expect(repository.update).not.toHaveBeenCalled(); // lastTriggeredAt never set → delivery failed
       expect(hookManager.execute).toHaveBeenCalledWith('webhook:error', expect.anything(), expect.anything());
+      expect(errorLog).toHaveBeenCalled(); // the refused redirect is logged as a delivery failure
+      errorLog.mockRestore();
     });
   });
 
