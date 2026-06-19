@@ -6,8 +6,11 @@ import { Session } from '../../modules/session/entities/session.entity';
  * (via BufferJSON) so reply/forward/react/delete can resolve the original message/key by id across
  * restarts. Engine-specific — lives in the engine layer, not the neutral `messages` table.
  *
- * The `session` relation declares the CASCADE FK so both the `synchronize:true` SQLite path and
- * the migration path clean up stored messages when the parent session row is deleted (I6).
+ * The `session` relation declares the CASCADE FK so stored messages are cleaned up when the parent
+ * session row is deleted (I6). The FK targets `sessions.name` (not the `id` UUID) because the
+ * Baileys engine identifies sessions by NAME everywhere - `messageStore.put` writes the session
+ * name as `sessionId`, so a FK to `sessions.id` never matched and every persist failed with a
+ * FOREIGN KEY constraint error. `sessions.name` carries a UNIQUE constraint, so it's a valid target.
  */
 @Entity('baileys_stored_messages')
 @Index(['sessionId', 'waMessageId'], { unique: true }) // lookup + dedup (send-return vs upsert echo)
@@ -20,7 +23,7 @@ export class BaileysStoredMessage {
   sessionId: string;
 
   @ManyToOne(() => Session, { onDelete: 'CASCADE' })
-  @JoinColumn({ name: 'sessionId' })
+  @JoinColumn({ name: 'sessionId', referencedColumnName: 'name' })
   session?: Session;
 
   @Column()
