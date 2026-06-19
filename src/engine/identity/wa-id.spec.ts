@@ -20,6 +20,12 @@ describe('wa-id', () => {
       expect(parseWaId('abc@newsletter')).toMatchObject({ kind: 'newsletter' });
       expect(parseWaId('not-a-jid')).toMatchObject({ kind: 'unknown' });
     });
+
+    it('classifies broadcast and lowercases the parsed parts', () => {
+      expect(parseWaId('123@broadcast')).toMatchObject({ kind: 'broadcast', userPart: '123' });
+      expect(parseWaId('ABC@NEWSLETTER')).toMatchObject({ kind: 'newsletter', userPart: 'abc' });
+      expect(parseWaId('AbCd@LID')).toMatchObject({ kind: 'lid', userPart: 'abcd' });
+    });
   });
 
   describe('toNeutralJid', () => {
@@ -40,6 +46,11 @@ describe('wa-id', () => {
       expect(toNeutralJid('111@lid', resolve)).toBe('628999@c.us');
       expect(toNeutralJid('222@lid', resolve)).toBe('222@lid'); // unresolved: kept as a privacy id
       expect(toNeutralJid('111@lid')).toBe('111@lid'); // no resolver supplied
+    });
+
+    it('keeps newsletter and broadcast channels in their own dialect', () => {
+      expect(toNeutralJid('120363-abc@newsletter')).toBe('120363-abc@newsletter');
+      expect(toNeutralJid('120363-def@broadcast')).toBe('120363-def@broadcast');
     });
 
     it('passes an unrecognized format through unchanged', () => {

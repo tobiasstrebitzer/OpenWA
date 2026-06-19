@@ -102,6 +102,30 @@ describe('TranslationCoordinator', () => {
     expect(saved.at(-1)?.active).toBe(true);
   });
 
+  it('recognizes a resolved-lid admin once group ids share the @c.us dialect', async () => {
+    // In a lid-addressed group the author is canonicalized to <phone>@c.us; the admin list must be
+    // canonicalized through the same path so widEquals (which does NOT bridge lid<->phone) can match.
+    const state = freshState({ announced: true });
+    const { store, gateway, translator, saved, mocks } = makeDeps(state);
+    mocks.getGroupAdmins.mockResolvedValue(['628111@c.us']); // resolved-lid admin, neutral dialect
+    const c = new TranslationCoordinator(translator, store, gateway, OPTS);
+    const res = await c.handleMessage('s', msg({ author: '628111@c.us', body: '/tr on' }));
+    expect(res).toEqual({ swallow: true });
+    expect(saved.at(-1)?.active).toBe(true);
+  });
+
+  it('regression guard: a raw @lid admin list does NOT match a resolved @c.us author', async () => {
+    // The pre-fix one-sided state: author canonicalized but the admin list left raw. widEquals compares
+    // user-parts (111 vs 628111) and deliberately won't bridge the namespaces, so the admin is denied.
+    const state = freshState({ announced: true });
+    const { store, gateway, translator, saved, mocks } = makeDeps(state);
+    mocks.getGroupAdmins.mockResolvedValue(['111@lid']); // un-canonicalized
+    const c = new TranslationCoordinator(translator, store, gateway, OPTS);
+    const res = await c.handleMessage('s', msg({ author: '628111@c.us', body: '/tr on' }));
+    expect(res).toEqual({ swallow: true });
+    expect(saved.at(-1)?.active ?? false).toBe(false);
+  });
+
   it('rejects activation from a non-admin (silent by default)', async () => {
     const state = freshState({ announced: true });
     const { store, gateway, translator, saved, mocks } = makeDeps(state);

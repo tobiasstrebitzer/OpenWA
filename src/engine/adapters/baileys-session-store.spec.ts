@@ -84,6 +84,18 @@ describe('BaileysSessionStore', () => {
     expect(store.resolvePhone('333@lid')).toBeNull();
   });
 
+  it('returns the user-part of an already-neutral @c.us id (a resolved-lid sender arrives as @c.us)', () => {
+    // Once inbound ids are canonicalized, a resolved lid reaches resolvePhone as <phone>@c.us. Without
+    // this branch senderPhone regresses to null for exactly the case the feature exists to surface.
+    expect(store.resolvePhone('628111@c.us')).toBe('628111');
+    expect(store.resolvePhone('628111:5@c.us')).toBe('628111');
+  });
+
+  it('resolves a :device-suffixed lid via the device-stripped mapping', () => {
+    store.addLidMappings([{ lid: '111@lid', pn: '628999@s.whatsapp.net' }]);
+    expect(store.resolvePhone('111:7@lid')).toBe('628999');
+  });
+
   describe('toNeutralJid', () => {
     it('maps @s.whatsapp.net to @c.us and strips the device suffix', () => {
       expect(store.toNeutralJid('628111@s.whatsapp.net')).toBe('628111@c.us');

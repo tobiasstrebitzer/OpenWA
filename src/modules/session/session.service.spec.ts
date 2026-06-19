@@ -10,6 +10,7 @@ import { EventsGateway } from '../events/events.gateway';
 import { WebhookService } from '../webhook/webhook.service';
 import { HookManager } from '../../core/hooks';
 import { IncomingMessage, EngineEventCallbacks, EngineStatus } from '../../engine/interfaces/whatsapp-engine.interface';
+import { BaileysSessionStore } from '../../engine/adapters/baileys-session-store';
 
 function createMockSession(overrides: Partial<Session> = {}): Session {
   return {
@@ -858,6 +859,33 @@ describe('SessionService', () => {
         expect(received).toHaveLength(1);
         expect((received[0][2] as IncomingMessage).senderPhone).toBe('628111222333');
         expect(mockEngine.resolveContactPhone).toHaveBeenCalledWith('111@lid');
+      } finally {
+        delete process.env.RESOLVE_LID_TO_PHONE;
+      }
+    });
+
+    it('resolves senderPhone from a canonicalized @c.us author for a resolved-lid sender (#263)', async () => {
+      // After JID canonicalization a resolved lid reaches the service as <phone>@c.us while isLidSender
+      // stays true. Wire resolveContactPhone to the real store so the @c.us branch is genuinely exercised:
+      // if resolvePhone regressed to null for @c.us, senderPhone would be null here.
+      process.env.RESOLVE_LID_TO_PHONE = 'true';
+      try {
+        echoHook();
+        const store = new BaileysSessionStore();
+        store.addLidMappings([{ lid: '111@lid', pn: '628111222333@s.whatsapp.net' }]);
+        mockEngine.resolveContactPhone.mockImplementation((id: string) => Promise.resolve(store.resolvePhone(id)));
+        const callbacks = await startAndCaptureCallbacks();
+
+        // Group lid author resolved to <phone>@c.us by the engine boundary.
+        callbacks.onMessage!(
+          makeMessage({ from: 'g@g.us', chatId: 'g@g.us', author: '628111222333@c.us', isLidSender: true }),
+        );
+        await flush();
+
+        const received = dispatchedEvents('message.received');
+        expect(received).toHaveLength(1);
+        expect((received[0][2] as IncomingMessage).senderPhone).toBe('628111222333');
+        expect(mockEngine.resolveContactPhone).toHaveBeenCalledWith('628111222333@c.us');
       } finally {
         delete process.env.RESOLVE_LID_TO_PHONE;
       }

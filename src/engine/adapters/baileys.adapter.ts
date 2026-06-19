@@ -466,14 +466,16 @@ export class BaileysAdapter implements IWhatsAppEngine {
     this.ensureReady();
     const all = await this.sock!.groupFetchAllParticipating();
     const self = this.normalizedSelfJid();
-    return Object.values(all).map(metadata => mapBaileysGroup(metadata, self));
+    return Object.values(all).map(metadata =>
+      mapBaileysGroup(metadata, self, jid => this.sessionStore.toNeutralJid(jid)),
+    );
   }
 
   async getGroupInfo(groupId: string): Promise<GroupInfo | null> {
     this.ensureReady();
     try {
       const metadata = await this.sock!.groupMetadata(groupId);
-      return mapBaileysGroupInfo(metadata);
+      return mapBaileysGroupInfo(metadata, jid => this.sessionStore.toNeutralJid(jid));
     } catch (err) {
       this.logger.debug('groupMetadata failed; treating as not-found', {
         groupId,
@@ -486,7 +488,7 @@ export class BaileysAdapter implements IWhatsAppEngine {
   async createGroup(name: string, participants: string[]): Promise<Group> {
     this.ensureReady();
     const metadata = await this.sock!.groupCreate(name, participants);
-    return mapBaileysGroup(metadata, this.normalizedSelfJid());
+    return mapBaileysGroup(metadata, this.normalizedSelfJid(), jid => this.sessionStore.toNeutralJid(jid));
   }
 
   async addParticipants(groupId: string, participants: string[]): Promise<void> {
