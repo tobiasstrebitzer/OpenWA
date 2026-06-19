@@ -8,7 +8,11 @@ import {
   getFieldDefinition,
 } from './filter-types';
 
-const normalizeJid = (value: string): string => value.trim().toLowerCase();
+// Compare JID-like ids by their bare user part so a filter written as a plain number or in any
+// engine dialect (@c.us / @s.whatsapp.net / @lid, with an optional :device suffix) matches the
+// same contact. Note: a raw @lid whose user part is the lid (not the phone) still won't match a
+// phone-based filter - that needs adapter-side lid->phone resolution, handled in the engine layer.
+const normalizeJid = (value: string): string => value.trim().toLowerCase().split('@')[0].split(':')[0];
 
 const toStringArray = (value: unknown): string[] =>
   Array.isArray(value) ? value.filter((v): v is string => typeof v === 'string') : [];

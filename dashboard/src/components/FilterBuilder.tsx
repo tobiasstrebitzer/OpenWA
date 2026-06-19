@@ -53,13 +53,18 @@ function defaultValueFor(kind: FieldKind): WebhookFilterCondition['value'] {
   return [];
 }
 
-/** Accepts a full JID or a phone number; normalizes bare numbers to `<digits>@c.us`. */
-function normalizeToJid(raw: string): string | null {
-  const value = raw.trim();
+/**
+ * Canonical contact id stored in filters: the bare user part, engine/dialect-agnostic. Accepts a
+ * full JID (@c.us / @s.whatsapp.net / @lid, optional :device suffix) or a typed phone number, and
+ * reduces both to the same value so a filter matches the contact regardless of which engine emits it.
+ */
+function normalizeContact(raw: string): string | null {
+  const value = raw.trim().toLowerCase();
   if (!value) return null;
-  if (value.includes('@')) return value.toLowerCase();
-  const digits = value.replace(/[^0-9]/g, '');
-  return digits ? `${digits}@c.us` : null;
+  const userPart = value.split('@')[0].split(':')[0]; // drop @domain + :device
+  if (value.includes('@')) return userPart || null; // a JID: keep its user part as-is
+  const digits = userPart.replace(/[^0-9]/g, ''); // a typed number: strip formatting
+  return digits || null;
 }
 
 interface ContactChipsInputProps {
@@ -77,20 +82,18 @@ function ContactChipsInput({ value, onChange, chats }: ContactChipsInputProps) {
     const query = text.trim().toLowerCase();
     const chosen = new Set(value);
     return chats
-      .filter(c => !chosen.has(c.id))
+      .filter(c => !chosen.has(normalizeContact(c.id) ?? c.id))
       .filter(c => !query || c.name.toLowerCase().includes(query) || c.id.toLowerCase().includes(query))
       .slice(0, 8);
   }, [text, chats, value]);
 
-  const labelFor = (jid: string) => chats.find(c => c.id === jid)?.name ?? jid;
-  const add = (jid: string) => {
-    if (jid && !value.includes(jid)) onChange([...value, jid]);
+  const labelFor = (id: string) => chats.find(c => normalizeContact(c.id) === id)?.name ?? id;
+  const add = (raw: string) => {
+    const id = normalizeContact(raw);
+    if (id && !value.includes(id)) onChange([...value, id]);
     setText('');
   };
-  const addTyped = () => {
-    const jid = normalizeToJid(text);
-    if (jid) add(jid);
-  };
+  const addTyped = () => add(text);
 
   return (
     <div className="chips-input">
@@ -134,14 +137,14 @@ function ContactChipsInput({ value, onChange, chats }: ContactChipsInputProps) {
               <span className="chips-suggestion-id">{c.id}</span>
             </button>
           ))}
-          {text.trim() && normalizeToJid(text) && (
+          {text.trim() && normalizeContact(text) && (
             <button
               type="button"
               className="chips-suggestion chips-suggestion-add"
               onMouseDown={e => e.preventDefault()}
               onClick={addTyped}
             >
-              {t('webhooks.filters.addValue', { value: normalizeToJid(text) })}
+              {t('webhooks.filters.addValue', { value: normalizeContact(text) })}
             </button>
           )}
         </div>

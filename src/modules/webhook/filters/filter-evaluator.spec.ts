@@ -26,6 +26,19 @@ describe('evaluateFilters', () => {
     expect(evaluateFilters(f, 'message.received', msg({ from: '222@c.us' }))).toBe(false);
   });
 
+  it('matches a contact across JID dialects and bare numbers (compares the user part)', () => {
+    // A filter written as a bare number or @c.us must match the same contact whether the engine
+    // emits @c.us (whatsapp-web.js), @s.whatsapp.net (Baileys), or carries a :device suffix.
+    const bare = filters({ field: 'sender', operator: 'is', value: ['111'] });
+    expect(evaluateFilters(bare, 'message.received', msg({ from: '111@c.us' }))).toBe(true);
+    expect(evaluateFilters(bare, 'message.received', msg({ from: '111@s.whatsapp.net' }))).toBe(true);
+    expect(evaluateFilters(bare, 'message.received', msg({ from: '111:12@s.whatsapp.net' }))).toBe(true);
+
+    const cus = filters({ field: 'recipient', operator: 'is', value: ['999@c.us'] });
+    expect(evaluateFilters(cus, 'message.sent', msg({ to: '999@s.whatsapp.net' }))).toBe(true);
+    expect(evaluateFilters(cus, 'message.sent', msg({ to: '888@s.whatsapp.net' }))).toBe(false);
+  });
+
   it('resolves sender to author in group messages', () => {
     const f = filters({ field: 'sender', operator: 'is', value: ['part@c.us'] });
     const groupMsg = msg({ from: '120@g.us', author: 'part@c.us', isGroup: true });
