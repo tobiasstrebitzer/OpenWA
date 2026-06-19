@@ -83,4 +83,68 @@ describe('BaileysSessionStore', () => {
     expect(store.resolvePhone('222@lid')).toBe('628222');
     expect(store.resolvePhone('333@lid')).toBeNull();
   });
+
+  describe('persistence (write-through + hydrate)', () => {
+    const makePersistence = () => ({
+      load: jest.fn().mockResolvedValue({ contacts: [], chats: [], lidToPn: [] }),
+      saveContacts: jest.fn().mockResolvedValue(undefined),
+      saveChats: jest.fn().mockResolvedValue(undefined),
+      saveLidMappings: jest.fn().mockResolvedValue(undefined),
+      clearSession: jest.fn().mockResolvedValue(undefined),
+    });
+
+    it('writes contacts/chats/lid mappings through to persistence on upsert', () => {
+      const p = makePersistence();
+      const s = new BaileysSessionStore(p, 'sess-1');
+      s.upsertContacts([{ id: '628111@s.whatsapp.net', name: 'Alice' }]);
+      s.upsertChats([{ id: '628111@s.whatsapp.net', name: 'Alice' }]);
+      s.addLidMappings([{ lid: '111@lid', pn: '628999@s.whatsapp.net' }]);
+
+      expect(p.saveContacts).toHaveBeenCalledWith('sess-1', [expect.objectContaining({ id: '628111@s.whatsapp.net' })]);
+      expect(p.saveChats).toHaveBeenCalledWith('sess-1', [expect.objectContaining({ id: '628111@s.whatsapp.net' })]);
+      expect(p.saveLidMappings).toHaveBeenCalledWith('sess-1', [{ lid: '111@lid', pn: '628999@s.whatsapp.net' }]);
+    });
+
+    it('persists the lid->pn mapping carried on a contact upsert', () => {
+      const p = makePersistence();
+      const s = new BaileysSessionStore(p, 'sess-1');
+      s.upsertContacts([{ id: '222@lid', lid: '222@lid', phoneNumber: '628222@s.whatsapp.net' }]);
+      expect(p.saveLidMappings).toHaveBeenCalledWith('sess-1', [{ lid: '222@lid', pn: '628222@s.whatsapp.net' }]);
+    });
+
+    it('hydrates contacts/chats/lid mappings from persistence', async () => {
+      const p = makePersistence();
+      p.load.mockResolvedValue({
+        contacts: [{ id: '628111@s.whatsapp.net', name: 'Alice', notify: 'Al' }],
+        chats: [{ id: '628111@s.whatsapp.net', name: 'Alice', unreadCount: 1 }],
+        lidToPn: [['111@lid', '628999@s.whatsapp.net']],
+      });
+      const s = new BaileysSessionStore(p, 'sess-1');
+      await s.hydrate();
+
+      expect(p.load).toHaveBeenCalledWith('sess-1');
+      expect(s.findContact('628111@s.whatsapp.net')?.name).toBe('Alice');
+      expect(s.listChats()[0].name).toBe('Alice');
+      expect(s.resolvePhone('111@lid')).toBe('628999');
+    });
+
+    it('swallows persistence failures - write-through never throws and memory still works', async () => {
+      const warn = jest.spyOn(console, 'warn').mockImplementation(() => {});
+      const p = makePersistence();
+      p.saveContacts.mockRejectedValue(new Error('db down'));
+      const s = new BaileysSessionStore(p, 'sess-1');
+
+      expect(() => s.upsertContacts([{ id: 'x@s.whatsapp.net', name: 'X' }])).not.toThrow();
+      await Promise.resolve(); // let the rejected write-through settle
+      expect(s.findContact('x@s.whatsapp.net')?.name).toBe('X'); // in-memory unaffected
+      warn.mockRestore();
+    });
+
+    it('is a pure in-memory no-op without persistence', async () => {
+      const s = new BaileysSessionStore(); // no persistence/sessionId
+      await expect(s.hydrate()).resolves.toBeUndefined();
+      expect(() => s.upsertContacts([{ id: 'x@s.whatsapp.net' }])).not.toThrow();
+      expect(s.findContact('x@s.whatsapp.net')).not.toBeNull();
+    });
+  });
 });

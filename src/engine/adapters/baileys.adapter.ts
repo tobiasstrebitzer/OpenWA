@@ -63,7 +63,7 @@ export class BaileysAdapter implements IWhatsAppEngine {
 
   private readonly logger = createLogger('BaileysAdapter');
   private readonly authPath: string;
-  private readonly sessionStore = new BaileysSessionStore();
+  private readonly sessionStore: BaileysSessionStore;
   private sock: WASocket | null = null;
   private status: EngineStatus = EngineStatus.DISCONNECTED;
   private qrCode: string | null = null;
@@ -71,6 +71,7 @@ export class BaileysAdapter implements IWhatsAppEngine {
   private pushName: string | null = null;
   private callbacks: EngineEventCallbacks = {};
   private intentionalClose = false;
+  private hydrated = false;
   private connecting = false;
   private reconnectAttempts = 0;
   private reconnectTimer?: ReturnType<typeof setTimeout>;
@@ -84,6 +85,9 @@ export class BaileysAdapter implements IWhatsAppEngine {
   constructor(private readonly config: BaileysAdapterConfig) {
     // Isolate each session's auth state under its own subdirectory of the shared auth dir.
     this.authPath = path.join(config.authDir, config.sessionId);
+    // Back the in-memory store with the persistence layer (when provided) so contacts/chats/lid
+    // mappings survive restarts; without it the store stays purely in-memory.
+    this.sessionStore = new BaileysSessionStore(config.sessionStore, config.sessionId);
     if (config.proxyUrl) {
       // Proxy support is gated for this slice — Baileys proxying needs an http/socks agent (a new dep).
       this.logger.warn('Proxy configured but not supported by the baileys engine in this slice; ignoring it', {
@@ -125,6 +129,14 @@ export class BaileysAdapter implements IWhatsAppEngine {
     const b = await this.loadLib();
     const { state, saveCreds } = await b.useMultiFileAuthState(this.authPath);
     const { version } = await b.fetchLatestBaileysVersion();
+
+    // Load persisted contacts/chats/lid mappings once, before the socket wires its event handlers,
+    // so reads work immediately and live history-sync events merge on top. Kept among the pre-guard
+    // awaits so the intentionalClose check below stays the last gate before the socket is created.
+    if (!this.hydrated) {
+      await this.sessionStore.hydrate();
+      this.hydrated = true;
+    }
 
     // C2: resurrect-after-stop guard — if disconnect/logout/destroy ran during the awaits above,
     // bail now so we don't create a live socket for a session that was intentionally stopped.
@@ -275,6 +287,7 @@ export class BaileysAdapter implements IWhatsAppEngine {
     this.sock = null;
     this.setStatus(EngineStatus.DISCONNECTED);
     await this.config.messageStore?.clearSession(this.config.sessionId).catch(() => undefined);
+    await this.config.sessionStore?.clearSession(this.config.sessionId).catch(() => undefined);
     // ponytail: leaves the multi-file auth dir on disk; a fresh link overwrites it. Add fs cleanup if
     // stale creds ever block re-linking.
   }

@@ -13,6 +13,29 @@ export interface BaileysMessageStore {
   clearSession(sessionId: string): Promise<void>;
 }
 
+/** A persisted record only needs an `id` (contact/chat id) at the type level; the whole object is
+ * serialized verbatim at runtime, so concrete Baileys `Contact`/`Chat` values are accepted as-is. */
+export type BaileysPersistedRecord = { id: string };
+
+/**
+ * Persistence boundary for the Baileys session store (contacts/chats/lid->pn). The in-memory store
+ * write-throughs to this on every upsert and hydrates from it on init, so the data survives restarts.
+ * The adapter depends on this narrow interface (not the Nest service) so it stays unit-testable.
+ */
+export interface BaileysSessionPersistence {
+  /** Load the persisted snapshot for a session (empty arrays when nothing is stored yet). */
+  load(sessionId: string): Promise<{
+    contacts: BaileysPersistedRecord[];
+    chats: BaileysPersistedRecord[];
+    lidToPn: [string, string][];
+  }>;
+  saveContacts(sessionId: string, records: BaileysPersistedRecord[]): Promise<void>;
+  saveChats(sessionId: string, records: BaileysPersistedRecord[]): Promise<void>;
+  saveLidMappings(sessionId: string, mappings: { lid: string; pn: string }[]): Promise<void>;
+  /** Remove all persisted session data for a session (called on logout). */
+  clearSession(sessionId: string): Promise<void>;
+}
+
 /**
  * Per-call construction config for {@link BaileysAdapter}. Engine-neutral fields come from the
  * factory; `authDir` is the base multi-file auth directory from the opaque `engine.baileys.*` blob
@@ -25,6 +48,8 @@ export interface BaileysAdapterConfig {
   proxyType?: 'http' | 'https' | 'socks4' | 'socks5';
   /** Persisted store for reply/forward/react/delete. Provided by the plugin; the four ops require it. */
   messageStore?: BaileysMessageStore;
+  /** Persisted contacts/chats/lid->pn snapshot. Provided by the plugin; absent => in-memory only. */
+  sessionStore?: BaileysSessionPersistence;
 }
 
 /**
