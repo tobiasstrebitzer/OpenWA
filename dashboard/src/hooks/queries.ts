@@ -8,6 +8,7 @@ import {
   infraApi,
   pluginsApi,
   type Webhook,
+  type WebhookFilters,
   type TemplatePayload,
 } from '../services/api';
 
@@ -17,6 +18,7 @@ export const queryKeys = {
   sessions: ['sessions'] as const,
   sessionStats: ['sessions', 'stats'] as const,
   sessionGroups: (sessionId: string) => ['sessions', sessionId, 'groups'] as const,
+  sessionChats: (sessionId: string) => ['sessions', sessionId, 'chats'] as const,
   webhooks: ['webhooks'] as const,
   templates: (sessionId: string) => ['sessions', sessionId, 'templates'] as const,
   apiKeys: ['apiKeys'] as const,
@@ -55,6 +57,15 @@ export function useSessionGroupsQuery(sessionId: string, enabled: boolean) {
   });
 }
 
+export function useSessionChatsQuery(sessionId: string, enabled: boolean) {
+  return useQuery({
+    queryKey: queryKeys.sessionChats(sessionId),
+    queryFn: () => sessionApi.getChats(sessionId),
+    enabled: enabled && !!sessionId,
+    staleTime: 60_000,
+  });
+}
+
 export function useStopSessionMutation() {
   const queryClient = useQueryClient();
   return useMutation({
@@ -78,8 +89,8 @@ export function useWebhooksQuery() {
 export function useCreateWebhookMutation() {
   const queryClient = useQueryClient();
   return useMutation({
-    mutationFn: (params: { sessionId: string; url: string; events: string[] }) =>
-      webhookApi.create(params.sessionId, { url: params.url, events: params.events }),
+    mutationFn: (params: { sessionId: string; url: string; events: string[]; filters?: WebhookFilters | null }) =>
+      webhookApi.create(params.sessionId, { url: params.url, events: params.events, filters: params.filters }),
     onSuccess: () => {
       void queryClient.invalidateQueries({ queryKey: queryKeys.webhooks });
     },

@@ -256,6 +256,38 @@
     "events": "Events",
     "available": "Available Events",
     "saveChanges": "Save Changes",
+    "filters": {
+      "title": "Filters (optional)",
+      "hint": "Only fire when all conditions match. Applies to message events.",
+      "badge": "{{count}} filter",
+      "badge_other": "{{count}} filters",
+      "addCondition": "Add condition",
+      "removeCondition": "Remove condition",
+      "caseSensitive": "Case sensitive",
+      "contactPlaceholder": "Number or WhatsApp ID...",
+      "textPlaceholder": "Text to match...",
+      "regexPlaceholder": "Regular expression...",
+      "addValue": "Add \"{{value}}\"",
+      "yes": "Yes",
+      "no": "No",
+      "fields": {
+        "sender": "Sender",
+        "recipient": "Recipient",
+        "body": "Message body",
+        "type": "Message type",
+        "isGroup": "Is group chat",
+        "fromMe": "Sent by me",
+        "hasMedia": "Has media",
+        "mentions": "Mentions"
+      },
+      "operators": {
+        "is": "is",
+        "isNot": "is not",
+        "contains": "contains",
+        "equals": "equals",
+        "matches": "matches regex"
+      }
+    },
     "columns": {
       "url": "URL",
       "events": "Events",

@@ -5,6 +5,25 @@
   overflow-x: hidden;
 }
 
+/* Webhook create/edit modal: roomier than the default 480px (filters need width). */
+.webhooks-page .modal:not(.modal-sm) {
+  max-width: 640px;
+}
+
+/* Consistent vertical rhythm between top-level form blocks in the webhook modals.
+   Direct-child only, so nested FilterBuilder inputs/selects are untouched. */
+.webhooks-page .modal-body > input,
+.webhooks-page .modal-body > select,
+.webhooks-page .modal-body > .event-tags {
+  margin-bottom: 0.75rem;
+}
+
+.webhooks-page .modal-body > .event-tags {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 0.5rem;
+}
+
 .page-header {
   margin-bottom: 2rem;
 }
@@ -214,6 +233,20 @@
   background: var(--primary);
   color: white;
   border-color: var(--primary);
+}
+
+.filter-badge {
+  display: inline-flex;
+  align-items: center;
+  gap: 0.25rem;
+  padding: 0.25rem 0.5rem;
+  border-radius: 6px;
+  font-size: 0.7rem;
+  font-weight: 600;
+  white-space: nowrap;
+  background: var(--bg-light);
+  color: var(--text-secondary);
+  border: 1px solid var(--border);
 }
 
 .status-badge {

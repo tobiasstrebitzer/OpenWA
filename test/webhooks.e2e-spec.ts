@@ -273,6 +273,29 @@ describe('Webhooks (e2e)', () => {
       expect((body as { data: { from: string } }).data.from).toBe('boss@c.us');
     });
 
+    it('does not deliver when the filter does not match', async () => {
+      const session = await nextSession();
+      await createWebhook(session, {
+        filters: { conditions: [{ field: 'sender', operator: 'is', value: ['boss@c.us'] }] },
+      });
+
+      await webhookService.dispatch(session, 'message.received', { from: 'spammer@c.us', body: 'spam' });
+      // No way to await a non-event; give dispatch a real chance to (not) deliver, then assert silence.
+      await new Promise(r => setTimeout(r, 100));
+      expect(received).toHaveLength(0);
+    });
+
+    it('passes a non-message event through a message-only filter', async () => {
+      const session = await nextSession();
+      await createWebhook(session, {
+        filters: { conditions: [{ field: 'sender', operator: 'is', value: ['nobody@c.us'] }] },
+      });
+
+      await webhookService.dispatch(session, 'session.status', { status: 'connected' });
+      await waitFor(() => received.length === 1);
+      expect(received[0].headers['x-openwa-event']).toBe('session.status');
+    });
+
     it('does not deliver to an inactive webhook', async () => {
       const session = await nextSession();
       const created = await createWebhook(session);

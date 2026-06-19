@@ -33,3 +33,58 @@ describe('webhook DTO event validation', () => {
     expect(errs.some(e => e.property === 'events')).toBe(true);
   });
 });
+
+describe('webhook DTO filter validation', () => {
+  const withFilters = (conditions: unknown) => ({ url: 'https://x.example/hook', filters: { conditions } });
+
+  it('accepts a webhook with no filters (optional)', async () => {
+    expect(await errorsFor(CreateWebhookDto, { url: 'https://x.example/hook' })).toHaveLength(0);
+  });
+
+  it('accepts valid sender + body conditions', async () => {
+    const errs = await errorsFor(
+      CreateWebhookDto,
+      withFilters([
+        { field: 'sender', operator: 'is', value: ['123@c.us'] },
+        { field: 'body', operator: 'contains', value: 'invoice' },
+      ]),
+    );
+    expect(errs).toHaveLength(0);
+  });
+
+  it('rejects an unknown field', async () => {
+    const errs = await errorsFor(CreateWebhookDto, withFilters([{ field: 'nope', operator: 'is', value: ['x'] }]));
+    expect(errs.some(e => e.property === 'filters')).toBe(true);
+  });
+
+  it('rejects an operator not allowed for the field', async () => {
+    const errs = await errorsFor(
+      CreateWebhookDto,
+      withFilters([{ field: 'sender', operator: 'contains', value: ['x'] }]),
+    );
+    expect(errs.some(e => e.property === 'filters')).toBe(true);
+  });
+
+  it('rejects an invalid message type value', async () => {
+    const errs = await errorsFor(CreateWebhookDto, withFilters([{ field: 'type', operator: 'is', value: ['gif'] }]));
+    expect(errs.some(e => e.property === 'filters')).toBe(true);
+  });
+
+  it('rejects an uncompilable regex', async () => {
+    const errs = await errorsFor(CreateWebhookDto, withFilters([{ field: 'body', operator: 'matches', value: '(' }]));
+    expect(errs.some(e => e.property === 'filters')).toBe(true);
+  });
+
+  it('rejects a catastrophic-backtracking regex pattern', async () => {
+    const errs = await errorsFor(
+      CreateWebhookDto,
+      withFilters([{ field: 'body', operator: 'matches', value: '(a+)+' }]),
+    );
+    expect(errs.some(e => e.property === 'filters')).toBe(true);
+  });
+
+  it('rejects a non-boolean value for a boolean field', async () => {
+    const errs = await errorsFor(CreateWebhookDto, withFilters([{ field: 'isGroup', operator: 'is', value: 'yes' }]));
+    expect(errs.some(e => e.property === 'filters')).toBe(true);
+  });
+});
