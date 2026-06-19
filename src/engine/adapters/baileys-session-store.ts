@@ -104,6 +104,29 @@ export class BaileysSessionStore {
     return null;
   }
 
+  /**
+   * Canonicalize a Baileys JID to the neutral `@c.us` convention the rest of the app (and the
+   * whatsapp-web.js engine) speaks: `@s.whatsapp.net` -> `<phone>@c.us`, `@lid` -> `<resolved
+   * phone>@c.us` (or the raw lid when it can't be resolved to a phone yet), groups stay `@g.us`.
+   * Device suffixes (`:12`) are stripped. Idempotent on already-neutral ids.
+   */
+  toNeutralJid(jid: string): string {
+    if (!jid || jid === 'status@broadcast') {
+      return jid;
+    }
+    if (jid.endsWith('@g.us')) {
+      return `${this.userPart(jid)}@g.us`;
+    }
+    if (jid.endsWith('@lid')) {
+      const phone = this.resolvePhone(jid);
+      return phone ? `${phone}@c.us` : jid;
+    }
+    if (jid.endsWith('@s.whatsapp.net') || jid.endsWith('@c.us')) {
+      return `${this.userPart(jid)}@c.us`;
+    }
+    return jid;
+  }
+
   private toNeutralContact(c: BaileysContactWithPhone): Contact {
     const number = c.phoneNumber
       ? this.userPart(c.phoneNumber)
