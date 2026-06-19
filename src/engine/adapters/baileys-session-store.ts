@@ -1,5 +1,7 @@
 import type { Chat, Contact as BaileysContact, WAMessage, WAMessageKey } from '@whiskeysockets/baileys';
 import { ChatSummary, Contact } from '../interfaces/whatsapp-engine.interface';
+import { BaileysSessionPersistence } from '../types/baileys.types';
+import { createLogger } from '../../common/services/logger.service';
 
 /**
  * Baileys `Contact` does not include a `phoneNumber` field, but WhatsApp Business events may supply
@@ -24,8 +26,35 @@ export class BaileysSessionStore {
   private readonly chats = new Map<string, Chat>();
   private readonly lastMessages = new Map<string, LastMessage>();
   private readonly lidToPn = new Map<string, string>();
+  private readonly logger = createLogger('BaileysSessionStore');
+
+  // `persistence`/`sessionId` are optional: without them the store is purely in-memory (the existing
+  // behaviour, and what the unit tests exercise). With them, upserts write through and hydrate() loads.
+  constructor(
+    private readonly persistence?: BaileysSessionPersistence,
+    private readonly sessionId?: string,
+  ) {}
+
+  /** Load persisted contacts/chats/lid mappings into memory. Safe no-op when persistence is absent. */
+  async hydrate(): Promise<void> {
+    if (!this.persistence || !this.sessionId) {
+      return;
+    }
+    try {
+      const { contacts, chats, lidToPn } = await this.persistence.load(this.sessionId);
+      for (const c of contacts) this.contacts.set(c.id, c);
+      for (const ch of chats) this.chats.set(ch.id, ch);
+      for (const [lid, pn] of lidToPn) this.lidToPn.set(lid, pn);
+    } catch (err) {
+      this.logger.warn('Failed to hydrate Baileys session store', {
+        error: err instanceof Error ? err.message : String(err),
+      });
+    }
+  }
 
   upsertContacts(records: Partial<BaileysContactWithPhone>[] = []): void {
+    const changed: BaileysContactWithPhone[] = [];
+    const newLids: { lid: string; pn: string }[] = [];
     for (const r of records) {
       if (!r.id) {
         continue;
@@ -33,28 +62,52 @@ export class BaileysSessionStore {
       const existing = this.contacts.get(r.id) ?? { id: r.id };
       const merged: BaileysContactWithPhone = { ...existing, ...r };
       this.contacts.set(r.id, merged);
+      changed.push(merged);
       if (r.lid && r.phoneNumber) {
         this.lidToPn.set(r.lid, r.phoneNumber);
+        newLids.push({ lid: r.lid, pn: r.phoneNumber });
       }
     }
+    if (changed.length) this.persist((p, sid) => p.saveContacts(sid, changed));
+    if (newLids.length) this.persist((p, sid) => p.saveLidMappings(sid, newLids));
   }
 
   upsertChats(records: Partial<Chat>[] = []): void {
+    const changed: Chat[] = [];
     for (const r of records) {
       if (!r.id) {
         continue;
       }
       const existing = this.chats.get(r.id) ?? { id: r.id };
-      this.chats.set(r.id, { ...existing, ...r });
+      const merged = { ...existing, ...r } as Chat;
+      this.chats.set(r.id, merged);
+      changed.push(merged);
     }
+    if (changed.length) this.persist((p, sid) => p.saveChats(sid, changed));
   }
 
   addLidMappings(mappings: { lid?: string; pn?: string }[] = []): void {
+    const saved: { lid: string; pn: string }[] = [];
     for (const m of mappings) {
       if (m.lid && m.pn) {
         this.lidToPn.set(m.lid, m.pn);
+        saved.push({ lid: m.lid, pn: m.pn });
       }
     }
+    if (saved.length) this.persist((p, sid) => p.saveLidMappings(sid, saved));
+  }
+
+  // Fire-and-forget write-through: persistence failures are logged, never thrown (the in-memory copy
+  // stays the source of truth for the live session).
+  private persist(run: (p: BaileysSessionPersistence, sessionId: string) => Promise<void>): void {
+    if (!this.persistence || !this.sessionId) {
+      return;
+    }
+    void run(this.persistence, this.sessionId).catch(err =>
+      this.logger.warn('Failed to persist Baileys session store', {
+        error: err instanceof Error ? err.message : String(err),
+      }),
+    );
   }
 
   recordMessage(msg: WAMessage): void {

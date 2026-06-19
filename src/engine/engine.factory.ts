@@ -7,6 +7,7 @@ import { WhatsAppWebJsPlugin } from '../plugins/engines/whatsapp-web-js';
 import { BaileysPlugin } from '../plugins/engines/baileys';
 import { createLogger } from '../common/services/logger.service';
 import { BaileysMessageStoreService } from './adapters/baileys-message-store.service';
+import { BaileysSessionStoreService } from './adapters/baileys-session-store.service';
 
 export interface EngineCreateOptions {
   sessionId: string;
@@ -23,6 +24,7 @@ export class EngineFactory implements OnModuleInit {
     private readonly configService: ConfigService,
     private readonly pluginLoader: PluginLoaderService,
     private readonly baileysMessageStore: BaileysMessageStoreService,
+    private readonly baileysSessionStore: BaileysSessionStoreService,
   ) {
     this.engineType = this.configService.get<string>('engine.type') ?? 'whatsapp-web.js';
   }
@@ -62,7 +64,7 @@ export class EngineFactory implements OnModuleInit {
     };
     this.pluginLoader.registerBuiltInPlugin(
       baileysManifest,
-      new BaileysPlugin(this.baileysMessageStore),
+      new BaileysPlugin(this.baileysMessageStore, this.baileysSessionStore),
       this.configService.get('engine') ?? {},
     );
 
