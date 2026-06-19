@@ -1,4 +1,18 @@
 // WhatsApp Engine Interface - Abstract layer for WA engines
+//
+// Identity contract (the engine boundary is an anti-corruption layer for WhatsApp's id dialects):
+// every JID an engine EMITS in a neutral field (`from` / `to` / `chatId` / `author` / contact + chat
+// `id`, etc.) is in the NEUTRAL dialect, so application code never has to know which engine produced
+// it. The neutral dialect is small:
+//   - `<phone>@c.us`  a user known by phone (the raw `@s.whatsapp.net` form folds into this)
+//   - `<id>@g.us`     a group
+//   - `<lid>@lid`     a user known ONLY by privacy id - phone genuinely unknown (a first-class state)
+//   - `status@broadcast` / `<id>@newsletter` / `<id>@broadcast`  special channels
+//   - never `@s.whatsapp.net`, never a `:device` suffix
+// Resolution rule: prefer `@c.us` (resolve a lid to its phone when the mapping is known), fall back to
+// `@lid` only when it can't be resolved. See `engine/identity/wa-id.ts` for the shared implementation.
+// (Ids the engine ACCEPTS - e.g. `sendTextMessage(chatId)` - may be neutral; the adapter de-normalizes
+// to its own dialect. Full inbound + outbound conformance is being rolled out per-engine.)
 
 export enum EngineStatus {
   DISCONNECTED = 'disconnected',

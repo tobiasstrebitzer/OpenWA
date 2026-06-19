@@ -91,10 +91,18 @@ export interface BaileysIncomingFields {
  * sender lives in `participant` (exposed as `author`), matching the wwjs convention where `from`
  * is the group JID.
  */
-export function buildIncomingMessageFromBaileys(fields: BaileysIncomingFields): IncomingMessage {
-  const chatId = fields.remoteJid;
-  const isGroup = chatId.endsWith('@g.us');
-  const self = fields.selfJid ?? '';
+export function buildIncomingMessageFromBaileys(
+  fields: BaileysIncomingFields,
+  // Canonicalizes the emitted JIDs (from/to/chatId/author) to the neutral @c.us convention. Defaults
+  // to identity so the pure-shape behaviour (and its tests) is unchanged; the adapter supplies the
+  // session-store-backed normalizer that resolves @lid / @s.whatsapp.net.
+  normalizeJid: (jid: string) => string = jid => jid,
+): IncomingMessage {
+  const rawChatId = fields.remoteJid;
+  const isGroup = rawChatId.endsWith('@g.us');
+  const isStatusBroadcast = rawChatId === 'status@broadcast';
+  const chatId = normalizeJid(rawChatId);
+  const self = normalizeJid(fields.selfJid ?? '');
 
   const incoming: IncomingMessage = {
     id: fields.id,
@@ -106,15 +114,15 @@ export function buildIncomingMessageFromBaileys(fields: BaileysIncomingFields): 
     timestamp: fields.timestamp,
     fromMe: fields.fromMe,
     isGroup,
-    isStatusBroadcast: chatId === 'status@broadcast',
+    isStatusBroadcast,
   };
 
   if (isGroup && fields.participant) {
-    incoming.author = fields.participant;
+    incoming.author = normalizeJid(fields.participant);
   }
 
-  // The real sender for an @lid check is the participant in a group, else the chat JID itself.
-  const senderJid = fields.participant ?? chatId;
+  // The lid check uses the RAW sender (participant in a group, else the chat JID) before normalization.
+  const senderJid = fields.participant ?? rawChatId;
   if (senderJid.endsWith('@lid')) {
     incoming.isLidSender = true;
   }

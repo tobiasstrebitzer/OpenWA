@@ -157,6 +157,33 @@ flowchart LR
     IC -.-> Cache
 ```
 
+### WhatsApp Identity Contract (engine-neutral ids)
+
+WhatsApp addresses the same entity through several id dialects, and each engine speaks a different one:
+whatsapp-web.js uses `<phone>@c.us`, while Baileys speaks the raw protocol forms `<phone>@s.whatsapp.net`
+and `<lid>@lid` (a privacy id whose number is **not** a phone number). To keep application code, the
+REST/webhook payloads, and plugins free of that, the **engine boundary is an anti-corruption layer**:
+every WhatsApp id an engine emits in a neutral field (`from` / `to` / `chatId` / `author`, contact and
+chat `id`) is reduced to one small **neutral dialect**:
+
+| Neutral form | Meaning |
+| --- | --- |
+| `<phone>@c.us` | a user, by phone (the raw `@s.whatsapp.net` form folds into this) |
+| `<id>@g.us` | a group |
+| `<lid>@lid` | a user known **only** by privacy id - phone genuinely unknown (a first-class state) |
+| `status@broadcast`, `<id>@newsletter`, `<id>@broadcast` | special channels |
+
+Never `@s.whatsapp.net`, never a `:device` suffix. **Resolution rule:** prefer `@c.us` (resolve a lid
+to its phone when the mapping is known), and fall back to `@lid` only when it can't be resolved - an
+unresolved lid is never faked into a phone number.
+
+The shared implementation lives in `src/engine/identity/wa-id.ts` (`parseWaId` / `toNeutralJid`); the
+contract is documented on the `IWhatsAppEngine` interface.
+
+> **Rollout status:** the contract is applied per-engine. It currently covers the **Baileys inbound
+> read path** (message / revoked / reaction payloads). Outbound id de-normalization (neutral -> engine
+> dialect on send) and contact/chat list ids are tracked follow-ups.
+
 ### Adapter Lifecycle State Machine
 
 Each adapter follows a consistent lifecycle:

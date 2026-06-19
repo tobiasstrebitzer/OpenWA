@@ -71,6 +71,25 @@ describe('buildIncomingMessageFromBaileys', () => {
     expect(r.to).toBe('628111@s.whatsapp.net'); // chat
   });
 
+  it('applies the supplied normalizer to from/to/chatId on a 1:1 message', () => {
+    const normalize = (jid: string) => jid.replace('@s.whatsapp.net', '@c.us');
+    const r = buildIncomingMessageFromBaileys(base, normalize);
+    expect(r.from).toBe('628111@c.us');
+    expect(r.to).toBe('628999@c.us');
+    expect(r.chatId).toBe('628111@c.us');
+  });
+
+  it('normalizes the group author and self while leaving the group JID intact', () => {
+    const normalize = (jid: string) => jid.replace('@s.whatsapp.net', '@c.us');
+    const r = buildIncomingMessageFromBaileys(
+      { ...base, remoteJid: '123-456@g.us', participant: '628222@s.whatsapp.net' },
+      normalize,
+    );
+    expect(r.from).toBe('123-456@g.us'); // group jid untouched by this normalizer
+    expect(r.to).toBe('628999@c.us'); // self normalized
+    expect(r.author).toBe('628222@c.us'); // participant normalized
+  });
+
   it('sets author to the participant for a group message and flags isGroup', () => {
     const r = buildIncomingMessageFromBaileys({
       ...base,

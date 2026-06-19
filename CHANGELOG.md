@@ -7,6 +7,21 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ## [Unreleased]
 
+### Fixed
+
+- **Baileys engine: inbound message ids are now engine-neutral (`@c.us`).** The Baileys adapter emitted
+  its native `<phone>@s.whatsapp.net` / `<lid>@lid` ids in message payloads (`from` / `to` / `chatId` /
+  `author`, plus revoked and reaction events), while the whatsapp-web.js engine and the rest of the
+  system use the `<phone>@c.us` convention - so the same contact was addressed under a different id
+  depending on the engine, and `@lid` (privacy-id) contacts could not be resolved to a phone. Baileys
+  now canonicalizes these to the neutral dialect (resolving a `@lid` to its phone when the mapping is
+  known, keeping it as `@lid` otherwise), matching whatsapp-web.js. Group participant and owner ids are
+  canonicalized through the same path, so admin/controller recognition (e.g. the translation plugin)
+  keeps working. **Consumer-visible:** `message.received` / `revoked` / `reaction` webhook and WebSocket
+  payloads from a Baileys session now carry `@c.us` ids where they previously carried
+  `@s.whatsapp.net` (or a resolved `@lid`); a consumer that stored or compared the old ids will see the
+  new value. Outbound sending and contact/chat list ids are unchanged for now.
+
 ## [0.4.4] - 2026-06-20
 
 A reliability and correctness patch. Engine: Baileys reconnect no longer leaks its socket, and a session
