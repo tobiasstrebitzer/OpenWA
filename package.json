@@ -129,9 +129,7 @@
     },
     "moduleNameMapper": {
       "^@whiskeysockets/baileys$": "<rootDir>/../test/__mocks__/@whiskeysockets/baileys.ts",
-      "^@whiskeysockets/baileys/(.*)$": "<rootDir>/../test/__mocks__/@whiskeysockets/baileys.ts"
-    },
-    "moduleNameMapper": {
+      "^@whiskeysockets/baileys/(.*)$": "<rootDir>/../test/__mocks__/@whiskeysockets/baileys.ts",
       "^@silkweave/nestjs$": "<rootDir>/../test/mocks/silkweave-nestjs.ts"
     },
     "collectCoverageFrom": [

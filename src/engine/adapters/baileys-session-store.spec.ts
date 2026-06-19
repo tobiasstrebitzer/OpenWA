@@ -147,4 +147,27 @@ describe('BaileysSessionStore', () => {
       expect(s.findContact('x@s.whatsapp.net')).not.toBeNull();
     });
   });
+
+  describe('toNeutralJid', () => {
+    it('maps @s.whatsapp.net to @c.us and strips the device suffix', () => {
+      expect(store.toNeutralJid('628111@s.whatsapp.net')).toBe('628111@c.us');
+      expect(store.toNeutralJid('628111:12@s.whatsapp.net')).toBe('628111@c.us');
+    });
+
+    it('keeps groups as @g.us and passes status@broadcast / empty through', () => {
+      expect(store.toNeutralJid('120363-456@g.us')).toBe('120363-456@g.us');
+      expect(store.toNeutralJid('status@broadcast')).toBe('status@broadcast');
+      expect(store.toNeutralJid('')).toBe('');
+    });
+
+    it('resolves a @lid to <phone>@c.us when known, else keeps the raw lid', () => {
+      expect(store.toNeutralJid('111@lid')).toBe('111@lid'); // no mapping yet
+      store.addLidMappings([{ lid: '111@lid', pn: '628999@s.whatsapp.net' }]);
+      expect(store.toNeutralJid('111@lid')).toBe('628999@c.us');
+    });
+
+    it('is idempotent on an already-neutral @c.us id', () => {
+      expect(store.toNeutralJid('628111@c.us')).toBe('628111@c.us');
+    });
+  });
 });

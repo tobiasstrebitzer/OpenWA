@@ -499,6 +499,51 @@ describe('BaileysAdapter inbound fan-out', () => {
     expect(msg).toMatchObject({ id: 'IN1', body: 'hi there', type: 'text', fromMe: false });
   });
 
+  it('canonicalizes an inbound message JID from @s.whatsapp.net to @c.us', async () => {
+    const onMessage = jest.fn();
+    const adapter = newAdapter();
+    await adapter.initialize({ onMessage });
+    fakeSock.fire('messages.upsert', {
+      type: 'notify',
+      messages: [
+        {
+          key: { remoteJid: '628111@s.whatsapp.net', fromMe: false, id: 'IN_C' },
+          message: { conversation: 'hi' },
+          messageTimestamp: 1700000002,
+        },
+      ],
+    });
+    await new Promise(r => setImmediate(r));
+    // eslint-disable-next-line @typescript-eslint/no-unsafe-member-access
+    const msg = onMessage.mock.calls[0][0] as { from: string; to: string; chatId: string };
+    expect(msg.from).toBe('628111@c.us');
+    expect(msg.to).toBe('628999@c.us'); // self (fakeSock.user is 628999)
+    expect(msg.chatId).toBe('628111@c.us');
+  });
+
+  it('resolves an @lid sender to <phone>@c.us using a history-sync lid->pn mapping', async () => {
+    const onMessage = jest.fn();
+    const adapter = newAdapter();
+    await adapter.initialize({ onMessage });
+    // History sync supplies the lid -> phone mapping the resolver needs.
+    fakeSock.fire('messaging-history.set', { lidPnMappings: [{ lid: '111@lid', pn: '628111@s.whatsapp.net' }] });
+    fakeSock.fire('messages.upsert', {
+      type: 'notify',
+      messages: [
+        {
+          key: { remoteJid: '111@lid', fromMe: false, id: 'IN_LID' },
+          message: { conversation: 'hi from lid' },
+          messageTimestamp: 1700000005,
+        },
+      ],
+    });
+    await new Promise(r => setImmediate(r));
+    // eslint-disable-next-line @typescript-eslint/no-unsafe-member-access
+    const msg = onMessage.mock.calls[0][0] as { from: string; isLidSender?: boolean };
+    expect(msg.from).toBe('628111@c.us'); // lid resolved to phone, neutral dialect
+    expect(msg.isLidSender).toBe(true); // still flagged: the raw sender was a lid
+  });
+
   it('routes a fromMe message to onMessageCreate (outgoing), not onMessage', async () => {
     const onMessage = jest.fn();
     const onMessageCreate = jest.fn();
@@ -733,7 +778,7 @@ describe('BaileysAdapter inbound fan-out', () => {
       body: string;
     };
     expect(revoked.id).toBe('ORIGINAL_ID');
-    expect(revoked.chatId).toBe('628111@s.whatsapp.net');
+    expect(revoked.chatId).toBe('628111@c.us'); // canonicalized to the neutral dialect
     expect(revoked.type).toBe('revoked');
     expect(revoked.body).toBe('');
   });
@@ -779,9 +824,9 @@ describe('BaileysAdapter inbound fan-out', () => {
       senderId: string;
     };
     expect(event.messageId).toBe('TARGET_MSG_ID');
-    expect(event.chatId).toBe('628111@s.whatsapp.net');
+    expect(event.chatId).toBe('628111@c.us'); // canonicalized to the neutral dialect
     expect(event.reaction).toBe('👍');
-    expect(event.senderId).toBe('628111@s.whatsapp.net');
+    expect(event.senderId).toBe('628111@c.us'); // canonicalized to the neutral dialect
   });
 
   it('media download failure: logs the error and emits the message without media (no throw)', async () => {

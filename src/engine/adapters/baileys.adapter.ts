@@ -690,9 +690,9 @@ export class BaileysAdapter implements IWhatsAppEngine {
           const to = msg.key.fromMe === true ? remoteJid : this.normalizedSelfJid();
           const revoked: RevokedMessage = {
             id: pm.key?.id ?? '',
-            chatId: remoteJid,
-            from,
-            to,
+            chatId: this.sessionStore.toNeutralJid(remoteJid),
+            from: this.sessionStore.toNeutralJid(from),
+            to: this.sessionStore.toNeutralJid(to),
             type: 'revoked',
             body: '',
             timestamp: this.toUnixSeconds(msg.messageTimestamp),
@@ -709,9 +709,9 @@ export class BaileysAdapter implements IWhatsAppEngine {
         const rm = msg.message?.reactionMessage;
         const event: ReactionEvent = {
           messageId: rm?.key?.id ?? '',
-          chatId: remoteJid,
+          chatId: this.sessionStore.toNeutralJid(remoteJid),
           reaction: rm?.text ?? '',
-          senderId: msg.key.participant ?? remoteJid,
+          senderId: this.sessionStore.toNeutralJid(msg.key.participant ?? remoteJid),
         };
         this.callbacks.onMessageReaction?.(event);
         return;
@@ -851,21 +851,24 @@ export class BaileysAdapter implements IWhatsAppEngine {
       quotedMessage = { id: contextInfo.stanzaId, body: qBody };
     }
 
-    return buildIncomingMessageFromBaileys({
-      id: msg.key.id ?? '',
-      remoteJid: msg.key.remoteJid!,
-      fromMe: msg.key.fromMe === true,
-      participant: msg.key.participant ?? undefined,
-      body,
-      contentType,
-      isPtt: content.audioMessage?.ptt === true,
-      timestamp: this.toUnixSeconds(msg.messageTimestamp),
-      pushName: msg.pushName ?? undefined,
-      selfJid: this.normalizedSelfJid(),
-      media,
-      location,
-      quotedMessage,
-    });
+    return buildIncomingMessageFromBaileys(
+      {
+        id: msg.key.id ?? '',
+        remoteJid: msg.key.remoteJid!,
+        fromMe: msg.key.fromMe === true,
+        participant: msg.key.participant ?? undefined,
+        body,
+        contentType,
+        isPtt: content.audioMessage?.ptt === true,
+        timestamp: this.toUnixSeconds(msg.messageTimestamp),
+        pushName: msg.pushName ?? undefined,
+        selfJid: this.normalizedSelfJid(),
+        media,
+        location,
+        quotedMessage,
+      },
+      jid => this.sessionStore.toNeutralJid(jid),
+    );
   }
 
   private normalizedSelfJid(): string {
