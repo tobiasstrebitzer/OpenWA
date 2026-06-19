@@ -8,12 +8,13 @@ describe('BaileysMessageStoreService', () => {
   let repo: Repository<BaileysStoredMessage>;
   let service: BaileysMessageStoreService;
 
-  // Seed a sessions row so FK constraints (if SQLite enables them) resolve correctly.
-  const seedSession = async (id: string): Promise<void> => {
+  // Seed a sessions row so FK constraints resolve. The store keys messages by session NAME (what the
+  // engine uses), and the FK targets sessions.name - so the seeded NAME must equal the put() key.
+  const seedSession = async (name: string): Promise<void> => {
     await ds.getRepository(Session).save(
       ds.getRepository(Session).create({
-        id,
-        name: `session-${id}`,
+        id: `id-${name}`, // arbitrary unique PK; the FK references name, not id
+        name,
         status: SessionStatus.READY,
         phone: null,
         pushName: null,
