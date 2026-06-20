@@ -60,6 +60,45 @@ function createSilentLogger(): BaileysLogger {
   return logger;
 }
 
+const BAILEYS_LOG_LEVELS = ['trace', 'debug', 'info', 'warn', 'error'];
+
+/**
+ * Baileys logger, silent by default. Set `BAILEYS_LOG_LEVEL` (trace|debug|info|warn|error) to surface
+ * Baileys' own diagnostics - the history/app-state sync decision flow ("awaiting notification", "App
+ * state sync complete", MAC errors) at debug/info, and the raw decoded WA wire frames at trace. Emits
+ * JSON lines to stdout (context "baileys-wire") independent of the app log level, so a run can be
+ * captured with `BAILEYS_LOG_LEVEL=trace node dist/main > baileys-wire.log`.
+ */
+function createBaileysLogger(): BaileysLogger {
+  const configured = (process.env.BAILEYS_LOG_LEVEL ?? 'silent').toLowerCase();
+  if (!BAILEYS_LOG_LEVELS.includes(configured)) {
+    return createSilentLogger();
+  }
+  const threshold = BAILEYS_LOG_LEVELS.indexOf(configured);
+  const write =
+    (lvl: string) =>
+    (obj: unknown, msg?: string): void => {
+      if (BAILEYS_LOG_LEVELS.indexOf(lvl) < threshold) {
+        return;
+      }
+      const rec =
+        typeof obj === 'string' ? { msg: obj } : { ...(obj as Record<string, unknown>), ...(msg ? { msg } : {}) };
+      process.stdout.write(
+        JSON.stringify({ ts: new Date().toISOString(), level: lvl, context: 'baileys-wire', ...rec }) + '\n',
+      );
+    };
+  const logger: BaileysLogger = {
+    level: configured,
+    child: () => logger,
+    trace: write('trace'),
+    debug: write('debug'),
+    info: write('info'),
+    warn: write('warn'),
+    error: write('error'),
+  };
+  return logger;
+}
+
 export class BaileysAdapter implements IWhatsAppEngine {
   private static readonly MAX_RECONNECT_ATTEMPTS = 5;
 
@@ -164,10 +203,18 @@ export class BaileysAdapter implements IWhatsAppEngine {
       version,
       browser: BAILEYS_BROWSER,
       printQRInTerminal: false,
+      // Enable the initial sync. Baileys defaults `shouldSyncHistoryMessage` to `() => !!syncFullHistory`,
+      // so leaving both unset disables ALL history + app-state sync - no contacts, chats, recent history,
+      // or lid->phone mappings ever arrive (the address-book app-state sync only runs once history sync is
+      // enabled; see WhiskeySockets/Baileys Socket/index.js + Socket/chats.js). Returning true enables it
+      // while keeping the full-archive download opt-in: with syncFullHistory false WhatsApp sends the
+      // RECENT window + the full contact/app-state snapshot, not the entire message history.
+      shouldSyncHistoryMessage: () => true,
+      syncFullHistory: process.env.BAILEYS_SYNC_FULL_HISTORY === 'true',
       // BaileysLogger matches ILogger exactly; cast needed because the module resolves
       // the type through a deep import path that TypeScript does not auto-unify here.
       // eslint-disable-next-line @typescript-eslint/no-unnecessary-type-assertion
-      logger: createSilentLogger() as unknown as ILogger,
+      logger: createBaileysLogger() as unknown as ILogger,
     });
     this.sock = sock;
 
@@ -175,21 +222,44 @@ export class BaileysAdapter implements IWhatsAppEngine {
     sock.ev.on('connection.update', update => this.handleConnectionUpdate(update));
     sock.ev.on('messages.upsert', event => this.handleMessagesUpsert(event));
     sock.ev.on('messages.update', updates => this.handleMessagesUpdate(updates));
-    sock.ev.on('contacts.upsert', contacts => this.sessionStore.upsertContacts(contacts));
-    sock.ev.on('contacts.update', updates => this.sessionStore.upsertContacts(updates));
-    sock.ev.on('chats.upsert', chats => this.sessionStore.upsertChats(chats));
-    sock.ev.on('chats.update', updates => this.sessionStore.upsertChats(updates));
+    sock.ev.on('contacts.upsert', contacts => {
+      this.logContactEvent('contacts.upsert', contacts);
+      this.sessionStore.upsertContacts(contacts);
+    });
+    sock.ev.on('contacts.update', updates => {
+      this.logContactEvent('contacts.update', updates);
+      this.sessionStore.upsertContacts(updates);
+    });
+    sock.ev.on('chats.upsert', chats => {
+      this.logger.debug('Baileys chats event', { action: 'baileys_chats', event: 'upsert', count: chats?.length ?? 0 });
+      this.sessionStore.upsertChats(chats);
+    });
+    sock.ev.on('chats.update', updates => {
+      this.logger.debug('Baileys chats event', {
+        action: 'baileys_chats',
+        event: 'update',
+        count: updates?.length ?? 0,
+      });
+      this.sessionStore.upsertChats(updates);
+    });
     sock.ev.on('messaging-history.set', history => {
       this.sessionStore.upsertContacts(history.contacts);
       this.sessionStore.upsertChats(history.chats);
       // lidPnMappings is not in the installed @whiskeysockets/baileys@6.7.23 type definition but
       // is present at runtime in later protocol versions; cast to access it safely.
-      const lidPnMappings = (history as unknown as { lidPnMappings?: { lid: string; pn: string }[] }).lidPnMappings;
+      const h = history as unknown as { lidPnMappings?: { lid: string; pn: string }[]; syncType?: unknown };
+      const lidPnMappings = h.lidPnMappings;
       this.sessionStore.addLidMappings(lidPnMappings ?? []);
       this.logger.debug('History sync received', {
         action: 'baileys_history_set',
         sessionId: this.config.sessionId,
+        syncType: h.syncType,
+        isLatest: history.isLatest,
+        progress: history.progress,
+        chats: history.chats?.length ?? 0,
+        messages: history.messages?.length ?? 0,
         contacts: history.contacts?.length ?? 0,
+        namedContacts: history.contacts?.filter(c => c.name || c.notify).length ?? 0,
         lidContacts: history.contacts?.filter(c => c.lid).length ?? 0,
         lidPnMappings: lidPnMappings?.length ?? 0,
       });
@@ -710,6 +780,29 @@ export class BaileysAdapter implements IWhatsAppEngine {
       }
       void this.processInboundMessage(msg);
     }
+  }
+
+  /** Diagnostic: log a contacts event's size + whether records carry names/lids (and a small sample). */
+  private logContactEvent(
+    event: string,
+    records: Array<{
+      id?: string;
+      name?: string;
+      notify?: string;
+      verifiedName?: string;
+      lid?: string;
+      jid?: string;
+    }> = [],
+  ): void {
+    const list = records ?? [];
+    this.logger.debug('Baileys contacts event', {
+      action: 'baileys_contacts',
+      event,
+      count: list.length,
+      withName: list.filter(r => r.name || r.notify || r.verifiedName).length,
+      withLid: list.filter(r => r.lid).length,
+      sample: list.slice(0, 3).map(r => ({ id: r.id, name: r.name, notify: r.notify, lid: r.lid, jid: r.jid })),
+    });
   }
 
   private async processInboundMessage(msg: WAMessage): Promise<void> {

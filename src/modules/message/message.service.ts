@@ -275,14 +275,17 @@ export class MessageService {
       .take(limit);
 
     if (chatId) {
-      query.andWhere('message.chatId = :chatId', { chatId });
+      // Match across dialects: a stored chatId may be `@s.whatsapp.net` (e.g. an outbound send addressed
+      // by a raw engine id) while the caller filters by the neutral `@c.us` from the chat list - same
+      // chat, different dialect. Resolving both sides through the table keeps them equal.
+      query.andWhere('message.chatId IN (:...chatIds)', { chatIds: this.resolveJidCandidates(chatId) });
     }
 
     if (from) {
       // Resolve the filter through the lid->phone table so a phone matches not just the stored
       // `<phone>@c.us` id but also any lid that resolves to the same person - turning the prior
       // silent miss (a lid-stored author vs a phone filter) into a hit.
-      query.andWhere('message.from IN (:...froms)', { froms: this.resolveFromCandidates(from) });
+      query.andWhere('message.from IN (:...froms)', { froms: this.resolveJidCandidates(from) });
     }
 
     const [messages, total] = await query.getManyAndCount();
@@ -290,13 +293,13 @@ export class MessageService {
   }
 
   /**
-   * Expand a `from` filter into every stored id that refers to the same person: the literal input (so an
-   * exact lid/group filter still matches), the phone in both user dialects, and every lid the resolution
-   * table maps to that phone.
+   * Expand a JID filter into every stored id that refers to the same chat/person: the literal input (so
+   * an exact group/lid filter still matches), the user-part in both user dialects (`@c.us` /
+   * `@s.whatsapp.net`), and every lid the resolution table maps to that phone.
    */
-  private resolveFromCandidates(from: string): string[] {
-    const phone = userPart(from);
-    const candidates = new Set<string>([from, `${phone}@c.us`, `${phone}@s.whatsapp.net`]);
+  private resolveJidCandidates(value: string): string[] {
+    const phone = userPart(value);
+    const candidates = new Set<string>([value, `${phone}@c.us`, `${phone}@s.whatsapp.net`]);
     for (const lid of this.lidMappingStore.lidsForPhone(phone)) {
       candidates.add(`${lid}@lid`);
     }

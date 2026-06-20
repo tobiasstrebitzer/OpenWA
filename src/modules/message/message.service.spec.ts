@@ -399,6 +399,41 @@ describe('MessageService', () => {
     });
   });
 
+  // ── getMessages chatId filter is dialect-agnostic ─────────────────
+  describe('getMessages chatId filter matches across dialects', () => {
+    // A message stored with the raw @s.whatsapp.net chatId (e.g. an outbound send addressed by a raw id).
+    const stored = { id: 'm1', from: '628113@c.us', chatId: '6281316434311@s.whatsapp.net' } as Message;
+
+    const makeChatQb = () => {
+      let chatIds: string[] | null = null;
+      const qb = {
+        where: jest.fn().mockReturnThis(),
+        orderBy: jest.fn().mockReturnThis(),
+        skip: jest.fn().mockReturnThis(),
+        take: jest.fn().mockReturnThis(),
+        andWhere: jest.fn().mockImplementation((_clause: string, params?: { chatIds?: string[] }) => {
+          if (params?.chatIds) chatIds = params.chatIds;
+          return qb;
+        }),
+        getManyAndCount: jest.fn().mockImplementation(() => {
+          const matched = chatIds && chatIds.includes(stored.chatId) ? [stored] : [];
+          return Promise.resolve([matched, matched.length]);
+        }),
+      };
+      return qb;
+    };
+
+    it('returns a @s.whatsapp.net-stored message when filtering by the neutral @c.us chat id', async () => {
+      lidMappingStore.lidsForPhone.mockReturnValue([]);
+      const qb = makeChatQb();
+      (repository.createQueryBuilder as jest.Mock).mockReturnValue(qb);
+
+      const { messages } = await service.getMessages('sess-1', { chatId: '6281316434311@c.us' });
+
+      expect(messages.map(m => m.id)).toEqual(['m1']);
+    });
+  });
+
   // ── sendVideo / sendAudio / sendDocument / sendSticker ────────────
 
   describe('sendVideo', () => {

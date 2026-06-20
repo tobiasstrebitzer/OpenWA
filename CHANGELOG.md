@@ -22,7 +22,24 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
   now carried by a typed `WaId` value object; it is in-memory only and serializes to the exact same
   neutral string, so **no webhook / WebSocket / REST response shape changes**.
 
+- **`BAILEYS_LOG_LEVEL`** (trace|debug|info|warn|error, silent by default) surfaces the Baileys library's
+  own diagnostics; `trace` dumps the decoded WhatsApp wire frames to stdout (context "baileys-wire") for
+  analysis.
+
 ### Fixed
+
+- **Baileys engine: contacts, chats and recent history now sync on connect.** Baileys defaults
+  `shouldSyncHistoryMessage` to `() => !!syncFullHistory`, so with `syncFullHistory` unset it silently
+  disabled the **entire** initial sync - the address-book/app-state sync never ran, so no contacts, chat
+  list, recent messages, or `lid -> phone` mappings ever arrived. The adapter now passes
+  `shouldSyncHistoryMessage: () => true`, enabling the sync while keeping the full-archive download
+  opt-in via `BAILEYS_SYNC_FULL_HISTORY` (WhatsApp sends the recent window + contact snapshot, not the
+  entire message history).
+
+- **Message history `chatId` filter now matches across dialects.** A chat addressed as `<phone>@c.us` (the
+  neutral list id) now also returns messages stored under `<phone>@s.whatsapp.net` (e.g. an outbound send
+  addressed by a raw engine id), so the conversation view is no longer empty when the stored and queried
+  dialects differ - the same resolution the `from` filter uses.
 
 - **Baileys engine: contact and chat *listing* ids are now engine-neutral (`@c.us`).** `getContacts` /
   `getChats` / `getContactById` previously returned the raw `<phone>@s.whatsapp.net` id (visible in the
