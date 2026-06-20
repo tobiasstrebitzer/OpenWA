@@ -7,6 +7,19 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ## [Unreleased]
 
+### Added
+
+- **WhatsApp simulator engine for true end-to-end tests (`ENGINE_TYPE=simulator`).** A new in-process
+  engine backs the full `IWhatsAppEngine` contract against a deterministic, event-sourced world, so the
+  entire service layer, REST/MCP surface, webhooks and dashboard can run with no real WhatsApp
+  connection. The world is an append-only event log materialized by a reducer and replayed at a point in
+  time; the engine covers messaging, contacts, groups (read + mutate), reactions, chat history, chats,
+  and the full long tail - labels, channels/newsletters, status/stories and the business catalog. The
+  engine and its `simulator` plugin are gated behind `ENGINE_TYPE=simulator` and lazy-loaded, so they are
+  inert for normal deployments. Scenarios are committed JSON fixtures under `@openwa/wa-sim`; a dev-only
+  CLI (`npm -w @openwa/wa-sim run generate`) uses Claude Haiku 4.5 to author richer fixtures, which tests
+  then replay deterministically (no model call at test time).
+
 ## [0.5.0] - 2026-06-21
 
 A security & reliability hardening release. **One behavior change** (the reason for the minor bump):
