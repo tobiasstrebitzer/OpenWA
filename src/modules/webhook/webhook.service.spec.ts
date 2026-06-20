@@ -21,6 +21,7 @@ import { fetch as undiciFetch } from 'undici';
 import { WebhookService, WebhookPayload } from './webhook.service';
 import { Webhook } from './entities/webhook.entity';
 import { WebhookFilters } from './filters/filter-types';
+import { LidMappingStoreService } from '../../engine/identity/lid-mapping-store.service';
 import { HookManager } from '../../core/hooks';
 import { QUEUE_NAMES } from '../queue/queue-names';
 import { Session } from '../session/entities/session.entity';
@@ -50,6 +51,7 @@ describe('WebhookService', () => {
   let configService: jest.Mocked<Partial<ConfigService>>;
   let hookManager: jest.Mocked<Partial<HookManager>>;
   let webhookQueue: jest.Mocked<Record<string, jest.Mock>>;
+  let lidStore: { getCached: jest.Mock };
 
   beforeEach(async () => {
     repository = {
@@ -82,12 +84,15 @@ describe('WebhookService', () => {
       add: jest.fn().mockResolvedValue(undefined),
     };
 
+    lidStore = { getCached: jest.fn().mockReturnValue(null) };
+
     const module: TestingModule = await Test.createTestingModule({
       providers: [
         WebhookService,
         { provide: getRepositoryToken(Webhook, 'data'), useValue: repository },
         { provide: ConfigService, useValue: configService },
         { provide: HookManager, useValue: hookManager },
+        { provide: LidMappingStoreService, useValue: lidStore },
         { provide: getQueueToken(QUEUE_NAMES.WEBHOOK), useValue: webhookQueue },
       ],
     }).compile();
@@ -458,6 +463,19 @@ describe('WebhookService', () => {
       const f = conds({ field: 'sender', operator: 'is', value: ['nobody@c.us'] });
       expect(await deliveries(f, 'session.status', { status: 'connected' })).toBe(1);
       expect(await deliveries(f, 'message.received', { from: 'someone@c.us' })).toBe(0);
+    });
+
+    it('resolves a lid sender to its phone via the table, so a phone filter fires (else a silent miss)', async () => {
+      const f = conds({ field: 'sender', operator: 'is', value: ['628999'] });
+      const data = { from: '120@g.us', author: '111@lid', isGroup: true };
+
+      // No mapping yet -> the lid author never matches the phone filter.
+      lidStore.getCached.mockReturnValue(null);
+      expect(await deliveries(f, 'message.received', data)).toBe(0);
+
+      // Table maps lid 111 -> 628999 -> the same message now fires.
+      lidStore.getCached.mockImplementation((lid: string) => (lid === '111' ? '628999' : null));
+      expect(await deliveries(f, 'message.received', data)).toBe(1);
     });
   });
 
