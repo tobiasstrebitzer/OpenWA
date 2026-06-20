@@ -9,6 +9,18 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ### Added
 
+- **Smart webhook filters (optional, additive).** A webhook trigger can now carry an optional set of
+  pre-dispatch conditions, evaluated per event before delivery: it fires only when **all** conditions
+  match (AND). Conditions match on `sender` / `recipient` / `body` / `type` / `mentions` / `fromMe` /
+  `hasMedia` / `isGroup` with `is` / `isNot` / `contains` / `equals` / `matches` (regex) operators;
+  message-only conditions are skipped for non-message events, so a `*`-subscribed webhook still fires on
+  session events. A webhook with no filters behaves exactly as before. Contact-id conditions
+  (`sender`/`recipient`/`mentions`) match by the engine-neutral `WaId` key, so a filter written as a
+  plain number or in any dialect (`@c.us` / `@s.whatsapp.net` / `@lid`) matches the same person - and a
+  lid-addressed sender (e.g. an unresolved `@lid` group participant) matches a phone filter once the
+  persistent `lid -> phone` table knows the mapping. Configurable via the API (`filters` on create/update)
+  and a new FilterBuilder UI on the dashboard's Webhooks page.
+
 - **Persistent, cross-session `lid -> phone` resolution + a `from` filter on message history.** A new
   `lid_mappings` table (on the `data` connection) records the `lid -> phone` mappings WhatsApp pushes us
   (history sync, contacts) so resolution is shared across sessions and survives restarts, instead of
