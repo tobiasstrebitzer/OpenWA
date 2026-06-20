@@ -267,6 +267,38 @@
     "events": "ఈవెంట్స్",
     "available": "అందుబాటులో ఉన్న ఈవెంట్స్",
     "saveChanges": "మార్పులను సేవ్ చేయి",
+    "filters": {
+      "title": "ఫిల్టర్‌లు (ఐచ్ఛికం)",
+      "hint": "అన్ని షరతులు సరిపోలినప్పుడు మాత్రమే ట్రిగ్గర్ అవుతుంది. సందేశ ఈవెంట్‌లకు వర్తిస్తుంది.",
+      "badge": "{{count}} ఫిల్టర్",
+      "badge_other": "{{count}} ఫిల్టర్‌లు",
+      "addCondition": "షరతును జోడించు",
+      "removeCondition": "షరతును తొలగించు",
+      "caseSensitive": "కేస్ సెన్సిటివ్",
+      "contactPlaceholder": "నంబర్ లేదా WhatsApp ID...",
+      "textPlaceholder": "సరిపోల్చాల్సిన టెక్స్ట్...",
+      "regexPlaceholder": "రెగ్యులర్ ఎక్స్‌ప్రెషన్...",
+      "addValue": "\"{{value}}\" జోడించు",
+      "yes": "అవును",
+      "no": "కాదు",
+      "fields": {
+        "sender": "పంపినవారు",
+        "recipient": "స్వీకర్త",
+        "body": "సందేశ విషయం",
+        "type": "సందేశ రకం",
+        "isGroup": "గ్రూప్ చాట్",
+        "fromMe": "నేను పంపినది",
+        "hasMedia": "మీడియా ఉంది",
+        "mentions": "ప్రస్తావనలు"
+      },
+      "operators": {
+        "is": "అనేది",
+        "isNot": "కాదు",
+        "contains": "కలిగి ఉంది",
+        "equals": "సమానం",
+        "matches": "రెగ్యెక్స్‌తో సరిపోలుతుంది"
+      }
+    },
     "columns": {
       "url": "URL",
       "events": "ఈవెంట్స్",

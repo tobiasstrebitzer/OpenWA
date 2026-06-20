@@ -267,6 +267,38 @@
     "events": "事件",
     "available": "可用事件",
     "saveChanges": "保存更改",
+    "filters": {
+      "title": "筛选条件（可选）",
+      "hint": "仅当所有条件都匹配时才触发。适用于消息事件。",
+      "badge": "{{count}} 个筛选条件",
+      "badge_other": "{{count}} 个筛选条件",
+      "addCondition": "添加条件",
+      "removeCondition": "移除条件",
+      "caseSensitive": "区分大小写",
+      "contactPlaceholder": "号码或 WhatsApp ID...",
+      "textPlaceholder": "要匹配的文本...",
+      "regexPlaceholder": "正则表达式...",
+      "addValue": "添加 \"{{value}}\"",
+      "yes": "是",
+      "no": "否",
+      "fields": {
+        "sender": "发送者",
+        "recipient": "接收者",
+        "body": "消息正文",
+        "type": "消息类型",
+        "isGroup": "是群聊",
+        "fromMe": "由我发送",
+        "hasMedia": "包含媒体",
+        "mentions": "提及"
+      },
+      "operators": {
+        "is": "是",
+        "isNot": "不是",
+        "contains": "包含",
+        "equals": "等于",
+        "matches": "匹配正则"
+      }
+    },
     "columns": {
       "url": "URL",
       "events": "事件",

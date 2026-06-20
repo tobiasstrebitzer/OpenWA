@@ -20,6 +20,7 @@ import * as crypto from 'crypto';
 import { fetch as undiciFetch } from 'undici';
 import { WebhookService, WebhookPayload } from './webhook.service';
 import { Webhook } from './entities/webhook.entity';
+import { WebhookFilters } from './filters/filter-types';
 import { HookManager } from '../../core/hooks';
 import { QUEUE_NAMES } from '../queue/queue-names';
 import { Session } from '../session/entities/session.entity';
@@ -32,6 +33,7 @@ function createMockWebhook(overrides: Partial<Webhook> = {}): Webhook {
     events: ['message.received'],
     secret: null,
     headers: {},
+    filters: null,
     active: true,
     retryCount: 3,
     lastTriggeredAt: null,
@@ -348,6 +350,114 @@ describe('WebhookService', () => {
       await service.dispatch('sess-1', 'message.received', {});
 
       expect(mockFetch).not.toHaveBeenCalled();
+    });
+  });
+
+  // ── dispatch (smart filters) ──────────────────────────────────────
+  // The event still has to match `events[]`; filters then refine WHETHER it fires based
+  // on the payload. A webhook with no filters behaves exactly as before (fires on match).
+
+  describe('dispatch (smart filters)', () => {
+    const mockFetch = undiciFetch as jest.Mock;
+
+    beforeEach(() => {
+      mockFetch.mockResolvedValue({ ok: true, status: 200 });
+      (repository.update as jest.Mock).mockResolvedValue({ affected: 1 });
+    });
+
+    afterEach(() => mockFetch.mockReset());
+
+    const conds = (...conditions: WebhookFilters['conditions']): WebhookFilters => ({ conditions });
+
+    // events:['*'] isolates the filter logic from event-name matching. Returns the number
+    // of outbound HTTP deliveries the dispatch performed (1 = fired, 0 = filtered out).
+    async function deliveries(
+      filters: WebhookFilters | null,
+      event: string,
+      data: Record<string, unknown>,
+    ): Promise<number> {
+      mockFetch.mockClear();
+      const webhook = createMockWebhook({ events: ['*'], filters });
+      (repository.find as jest.Mock).mockResolvedValue([webhook]);
+      await service.dispatch('sess-1', event, data);
+      return mockFetch.mock.calls.length;
+    }
+
+    it('fires with no filters (additive: zero-config behaviour is unchanged)', async () => {
+      expect(await deliveries(null, 'message.received', { from: '111@c.us' })).toBe(1);
+      expect(await deliveries(conds(), 'message.received', { from: '111@c.us' })).toBe(1);
+    });
+
+    it('sender "is": fires on a match, filters out a mismatch', async () => {
+      const f = conds({ field: 'sender', operator: 'is', value: ['111@c.us'] });
+      expect(await deliveries(f, 'message.received', { from: '111@c.us' })).toBe(1);
+      expect(await deliveries(f, 'message.received', { from: '222@c.us' })).toBe(0);
+    });
+
+    it('sender "isNot": filters out the named sender, fires for everyone else', async () => {
+      const f = conds({ field: 'sender', operator: 'isNot', value: ['spammer@c.us'] });
+      expect(await deliveries(f, 'message.received', { from: 'spammer@c.us' })).toBe(0);
+      expect(await deliveries(f, 'message.received', { from: 'friend@c.us' })).toBe(1);
+    });
+
+    it('resolves sender to the group participant (author), not the group JID', async () => {
+      const f = conds({ field: 'sender', operator: 'is', value: ['part@c.us'] });
+      const data = { from: '120@g.us', author: 'part@c.us', isGroup: true };
+      expect(await deliveries(f, 'message.received', data)).toBe(1);
+    });
+
+    it('ANDs multiple conditions (all must match)', async () => {
+      const f = conds(
+        { field: 'sender', operator: 'is', value: ['boss@c.us'] },
+        { field: 'body', operator: 'contains', value: 'invoice' },
+      );
+      expect(await deliveries(f, 'message.received', { from: 'boss@c.us', body: 'the invoice is ready' })).toBe(1);
+      expect(await deliveries(f, 'message.received', { from: 'boss@c.us', body: 'lunch?' })).toBe(0);
+      expect(await deliveries(f, 'message.received', { from: 'other@c.us', body: 'invoice' })).toBe(0);
+    });
+
+    it('body "contains" is case-insensitive by default and respects caseSensitive', async () => {
+      const ci = conds({ field: 'body', operator: 'contains', value: 'ping' });
+      expect(await deliveries(ci, 'message.received', { body: 'PING me' })).toBe(1);
+      const cs = conds({ field: 'body', operator: 'contains', value: 'ping', caseSensitive: true });
+      expect(await deliveries(cs, 'message.received', { body: 'PING me' })).toBe(0);
+    });
+
+    it('body "matches" applies the regex; an invalid regex filters out (never throws)', async () => {
+      const f = conds({ field: 'body', operator: 'matches', value: '^order\\s+\\d+' });
+      expect(await deliveries(f, 'message.received', { body: 'order 42' })).toBe(1);
+      expect(await deliveries(f, 'message.received', { body: 'hello' })).toBe(0);
+      const bad = conds({ field: 'body', operator: 'matches', value: '(' });
+      await expect(deliveries(bad, 'message.received', { body: '(' })).resolves.toBe(0);
+    });
+
+    it('type "is" matches one of the listed message types', async () => {
+      const f = conds({ field: 'type', operator: 'is', value: ['image', 'video'] });
+      expect(await deliveries(f, 'message.received', { type: 'image' })).toBe(1);
+      expect(await deliveries(f, 'message.received', { type: 'text' })).toBe(0);
+    });
+
+    it('boolean fields: fromMe and hasMedia', async () => {
+      const fromMe = conds({ field: 'fromMe', operator: 'is', value: true });
+      expect(await deliveries(fromMe, 'message.received', { fromMe: true })).toBe(1);
+      expect(await deliveries(fromMe, 'message.received', { fromMe: false })).toBe(0);
+
+      const hasMedia = conds({ field: 'hasMedia', operator: 'is', value: true });
+      expect(await deliveries(hasMedia, 'message.received', { media: { mimetype: 'image/png' } })).toBe(1);
+      expect(await deliveries(hasMedia, 'message.received', { body: 'just text' })).toBe(0);
+    });
+
+    it('mentions: fires when the message mentions one of the listed JIDs', async () => {
+      const f = conds({ field: 'mentions', operator: 'is', value: ['boss@c.us'] });
+      expect(await deliveries(f, 'message.received', { mentionedIds: ['boss@c.us', 'x@c.us'] })).toBe(1);
+      expect(await deliveries(f, 'message.received', { mentionedIds: ['x@c.us'] })).toBe(0);
+    });
+
+    it('skips message-only conditions on a non-message event (so it still fires)', async () => {
+      // A webhook subscribed to '*' with message filters must not suppress non-message events.
+      const f = conds({ field: 'sender', operator: 'is', value: ['nobody@c.us'] });
+      expect(await deliveries(f, 'session.status', { status: 'connected' })).toBe(1);
+      expect(await deliveries(f, 'message.received', { from: 'someone@c.us' })).toBe(0);
     });
   });
 

@@ -267,6 +267,38 @@
     "events": "事件",
     "available": "可用事件",
     "saveChanges": "儲存變更",
+    "filters": {
+      "title": "篩選條件（選填）",
+      "hint": "僅當所有條件都符合時才觸發。適用於訊息事件。",
+      "badge": "{{count}} 個篩選條件",
+      "badge_other": "{{count}} 個篩選條件",
+      "addCondition": "新增條件",
+      "removeCondition": "移除條件",
+      "caseSensitive": "區分大小寫",
+      "contactPlaceholder": "號碼或 WhatsApp ID...",
+      "textPlaceholder": "要符合的文字...",
+      "regexPlaceholder": "正規表達式...",
+      "addValue": "新增 \"{{value}}\"",
+      "yes": "是",
+      "no": "否",
+      "fields": {
+        "sender": "傳送者",
+        "recipient": "接收者",
+        "body": "訊息內容",
+        "type": "訊息類型",
+        "isGroup": "是群組聊天",
+        "fromMe": "由我傳送",
+        "hasMedia": "包含媒體",
+        "mentions": "提及"
+      },
+      "operators": {
+        "is": "是",
+        "isNot": "不是",
+        "contains": "包含",
+        "equals": "等於",
+        "matches": "符合正規表達式"
+      }
+    },
     "columns": {
       "url": "URL",
       "events": "事件",

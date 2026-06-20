@@ -267,6 +267,38 @@
     "events": "الأحداث",
     "available": "الأحداث المتاحة",
     "saveChanges": "حفظ التغييرات",
+    "filters": {
+      "title": "عوامل التصفية (اختياري)",
+      "hint": "يتم التفعيل فقط عند تطابق جميع الشروط. ينطبق على أحداث الرسائل.",
+      "badge": "{{count}} عامل تصفية",
+      "badge_other": "{{count}} عوامل تصفية",
+      "addCondition": "إضافة شرط",
+      "removeCondition": "إزالة الشرط",
+      "caseSensitive": "حساس لحالة الأحرف",
+      "contactPlaceholder": "رقم أو معرّف واتساب...",
+      "textPlaceholder": "نص للمطابقة...",
+      "regexPlaceholder": "تعبير نمطي...",
+      "addValue": "إضافة \"{{value}}\"",
+      "yes": "نعم",
+      "no": "لا",
+      "fields": {
+        "sender": "المُرسِل",
+        "recipient": "المُستلِم",
+        "body": "نص الرسالة",
+        "type": "نوع الرسالة",
+        "isGroup": "محادثة جماعية",
+        "fromMe": "مُرسَلة مني",
+        "hasMedia": "تحتوي على وسائط",
+        "mentions": "الإشارات"
+      },
+      "operators": {
+        "is": "هو",
+        "isNot": "ليس",
+        "contains": "يحتوي على",
+        "equals": "يساوي",
+        "matches": "يطابق التعبير النمطي"
+      }
+    },
     "columns": {
       "url": "الرابط",
       "events": "الأحداث",
