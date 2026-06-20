@@ -65,7 +65,7 @@ export class BaileysAdapter implements IWhatsAppEngine {
 
   private readonly logger = createLogger('BaileysAdapter');
   private readonly authPath: string;
-  private readonly sessionStore = new BaileysSessionStore();
+  private readonly sessionStore: BaileysSessionStore;
   private sock: WASocket | null = null;
   private status: EngineStatus = EngineStatus.DISCONNECTED;
   private qrCode: string | null = null;
@@ -86,6 +86,7 @@ export class BaileysAdapter implements IWhatsAppEngine {
   constructor(private readonly config: BaileysAdapterConfig) {
     // Isolate each session's auth state under its own subdirectory of the shared auth dir.
     this.authPath = path.join(config.authDir, config.sessionId);
+    this.sessionStore = new BaileysSessionStore(config.lidMappingStore, config.sessionId);
     if (config.proxyUrl) {
       // Proxy support is gated for this slice — Baileys proxying needs an http/socks agent (a new dep).
       this.logger.warn('Proxy configured but not supported by the baileys engine in this slice; ignoring it', {
@@ -185,7 +186,16 @@ export class BaileysAdapter implements IWhatsAppEngine {
       // is present at runtime in later protocol versions; cast to access it safely.
       const lidPnMappings = (history as unknown as { lidPnMappings?: { lid: string; pn: string }[] }).lidPnMappings;
       this.sessionStore.addLidMappings(lidPnMappings ?? []);
+      this.logger.debug('History sync received', {
+        action: 'baileys_history_set',
+        sessionId: this.config.sessionId,
+        contacts: history.contacts?.length ?? 0,
+        lidContacts: history.contacts?.filter(c => c.lid).length ?? 0,
+        lidPnMappings: lidPnMappings?.length ?? 0,
+      });
     });
+    // WhatsApp pushes this when a lid contact shares its phone number - a direct lid->phone pair.
+    sock.ev.on('chats.phoneNumberShare', ({ lid, jid }) => this.sessionStore.addLidMappings([{ lid, pn: jid }]));
   }
 
   private handleConnectionUpdate(update: {
@@ -707,7 +717,8 @@ export class BaileysAdapter implements IWhatsAppEngine {
       const b = await this.loadLib();
       const remoteJid = msg.key.remoteJid!;
       // Learn any lid->pn pair the key carries BEFORE canonicalizing ids below, so a fresh @lid
-      // sender resolves to its phone in this message and for later contact lookups (#362).
+      // sender resolves to its phone in this message and for later contact lookups (#362). The pairs
+      // also write through to the persistent lid->phone table via addLidMappings.
       this.sessionStore.recordKeyLidMappings(msg.key);
       const contentType = b.getContentType(msg.message ?? undefined);
 

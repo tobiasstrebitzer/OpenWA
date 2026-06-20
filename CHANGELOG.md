@@ -7,6 +7,31 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ## [Unreleased]
 
+### Added
+
+- **Persistent, cross-session `lid -> phone` resolution + a `from` filter on message history.** A new
+  `lid_mappings` table (on the `data` connection) records the `lid -> phone` mappings WhatsApp pushes us
+  (history sync, contacts) so resolution is shared across sessions and survives restarts, instead of
+  living only in one Baileys session's in-memory map. `GET /api/sessions/:sessionId/messages` now accepts
+  a `from` query param that resolves through this table: filtering by a phone returns not just messages
+  stored as `<phone>@c.us` but also those whose sender was an unresolved `<lid>@lid` that has since
+  resolved to that phone - closing a gap where a phone-based filter silently missed the same person's
+  lid-addressed (e.g. group) messages. The table is populated at runtime from the lid<->phone pairs the
+  Baileys engine observes (inbound message `senderPn`/`participantPn`, the `chats.phoneNumberShare`
+  event, contacts, and history sync), so it fills continuously without re-auth. Internally these ids are
+  now carried by a typed `WaId` value object; it is in-memory only and serializes to the exact same
+  neutral string, so **no webhook / WebSocket / REST response shape changes**.
+
+### Fixed
+
+- **Baileys engine: contact and chat *listing* ids are now engine-neutral (`@c.us`).** `getContacts` /
+  `getChats` / `getContactById` previously returned the raw `<phone>@s.whatsapp.net` id (visible in the
+  dashboard, and mismatched against the `@c.us` chatId stored on messages). They now emit the neutral
+  `@c.us` dialect like the message payloads; the read-back paths (`sendSeen` / `deleteChat` / contact
+  lookup) accept the neutral id and fold it back internally, so sending and marking-read still round-trip.
+  **Consumer-visible:** Baileys contact/chat-list ids flip `@s.whatsapp.net` -> `@c.us` (whatsapp-web.js
+  already used `@c.us`).
+
 ## [0.4.5] - 2026-06-20
 
 A Baileys engine quality-and-correctness release, plus a chat-history enhancement. **Identity:** inbound
@@ -45,7 +70,6 @@ consumer that stored or compared the old ids will see the new value.
   `participantPn`), so the sender of an incoming message resolves to its number and later contact lookups
   succeed. Still best-effort by design — a number is only revealed once WhatsApp delivers the mapping
   (e.g. an inbound message from that contact). (#362)
-
 - **Baileys engine: inbound message ids are now engine-neutral (`@c.us`).** The Baileys adapter emitted
   its native `<phone>@s.whatsapp.net` / `<lid>@lid` ids in message payloads (`from` / `to` / `chatId` /
   `author`, plus revoked and reaction events), while the whatsapp-web.js engine and the rest of the

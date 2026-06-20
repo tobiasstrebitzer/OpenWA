@@ -1,6 +1,7 @@
 import type { Chat, Contact as BaileysContact, WAMessage, WAMessageKey } from '@whiskeysockets/baileys';
 import { ChatSummary, Contact } from '../interfaces/whatsapp-engine.interface';
 import { parseWaId, toNeutralJid as canonicalizeWaId, userPart } from '../identity/wa-id';
+import type { LidMappingStore } from '../identity/lid-mapping-store.service';
 
 /**
  * Baileys `Contact` does not include a `phoneNumber` field, but WhatsApp Business events may supply
@@ -26,6 +27,16 @@ export class BaileysSessionStore {
   private readonly lastMessages = new Map<string, LastMessage>();
   private readonly lidToPn = new Map<string, string>();
 
+  /**
+   * @param lidStore  optional persisted, cross-session lid->phone table that backs resolution beyond
+   *                  this session's in-memory map (survives restarts, shared across sessions).
+   * @param sessionId provenance recorded on rows this session writes to the table.
+   */
+  constructor(
+    private readonly lidStore?: LidMappingStore,
+    private readonly sessionId?: string,
+  ) {}
+
   upsertContacts(records: Partial<BaileysContactWithPhone>[] = []): void {
     for (const r of records) {
       if (!r.id) {
@@ -34,8 +45,13 @@ export class BaileysSessionStore {
       const existing = this.contacts.get(r.id) ?? { id: r.id };
       const merged: BaileysContactWithPhone = { ...existing, ...r };
       this.contacts.set(r.id, merged);
-      if (r.lid && r.phoneNumber) {
-        this.lidToPn.set(r.lid, r.phoneNumber);
+      // Capture a lid->phone pair from the merged record (lid + phone can arrive in separate updates).
+      // The phone is `jid` on a Baileys Contact (`@s.whatsapp.net`); `phoneNumber` only appears on the
+      // WhatsApp Business event shape we extend in locally.
+      const phone = merged.phoneNumber ?? merged.jid;
+      if (merged.lid && phone) {
+        this.lidToPn.set(merged.lid, phone);
+        this.persistLidMapping(merged.lid, phone);
       }
     }
   }
@@ -54,6 +70,7 @@ export class BaileysSessionStore {
     for (const m of mappings) {
       if (m.lid && m.pn) {
         this.lidToPn.set(m.lid, m.pn);
+        this.persistLidMapping(m.lid, m.pn);
       }
     }
   }
@@ -63,13 +80,19 @@ export class BaileysSessionStore {
    * (`senderPn` / `participantPn`) next to its privacy id (`senderLid` / `participantLid`) on the message
    * key — the only place a fresh `@lid` sender's number is revealed in @whiskeysockets/baileys@6.7.23
    * (there is no `getPNForLID` lookup and `contacts.*` / `messaging-history.set` don't fire for it). This
-   * lets `resolvePhone` (senderPhone, `GET /contacts/:id/phone`) and lid canonicalization succeed.
+   * lets `resolvePhone` (senderPhone, `GET /contacts/:id/phone`) and lid canonicalization succeed. The
+   * pairs flow through addLidMappings, so they also write through to the persistent table.
    */
   recordKeyLidMappings(key: Pick<WAMessageKey, 'senderLid' | 'senderPn' | 'participantLid' | 'participantPn'>): void {
     this.addLidMappings([
       { lid: key.senderLid ?? undefined, pn: key.senderPn ?? undefined },
       { lid: key.participantLid ?? undefined, pn: key.participantPn ?? undefined },
     ]);
+  }
+
+  /** Write a learned lid->phone pair through to the persistent table (bare digits, fire-and-forget). */
+  private persistLidMapping(lidJid: string, pnJid: string): void {
+    void this.lidStore?.remember(userPart(lidJid), userPart(pnJid), this.sessionId);
   }
 
   recordMessage(msg: WAMessage): void {
@@ -91,7 +114,7 @@ export class BaileysSessionStore {
   }
 
   findContact(id: string): Contact | null {
-    const c = this.contacts.get(id);
+    const c = this.contacts.get(id) ?? this.contacts.get(this.toEngineJid(id));
     return c ? this.toNeutralContact(c) : null;
   }
 
@@ -100,7 +123,7 @@ export class BaileysSessionStore {
   }
 
   lastMessage(chatId: string): { key: WAMessageKey; timestamp: number } | null {
-    const m = this.lastMessages.get(chatId);
+    const m = this.lastMessages.get(chatId) ?? this.lastMessages.get(this.toEngineJid(chatId));
     return m ? { key: m.key, timestamp: m.timestamp } : null;
   }
 
@@ -119,7 +142,12 @@ export class BaileysSessionStore {
         return userPart(pn);
       }
       const contactPhone = (this.contacts.get(lidJid) ?? this.contacts.get(id))?.phoneNumber;
-      return contactPhone ? userPart(contactPhone) : null;
+      if (contactPhone) {
+        return userPart(contactPhone);
+      }
+      // Fall back to the persistent, cross-session table (in-memory cache, keyed by bare lid digits).
+      // `null` means a cached negative (known-unresolved); `undefined` means never seen - both -> null.
+      return this.lidStore?.getCached(parsed.userPart) ?? null;
     }
     return null;
   }
@@ -132,10 +160,21 @@ export class BaileysSessionStore {
     return canonicalizeWaId(jid, id => this.resolvePhone(id));
   }
 
+  /**
+   * Fold an app-facing neutral id back to the engine's raw dialect for map lookups. The contacts /
+   * chats / lastMessages maps are keyed by Baileys' raw `@s.whatsapp.net`, but the app now hands us the
+   * neutral `@c.us` (contact/chat ids are emitted neutral). Groups/lids/others share the dialect, so
+   * pass them through unchanged.
+   */
+  private toEngineJid(jid: string): string {
+    const parsed = parseWaId(jid);
+    return parsed.kind === 'user' ? `${parsed.userPart}@s.whatsapp.net` : jid;
+  }
+
   private toNeutralContact(c: BaileysContactWithPhone): Contact {
     const number = c.phoneNumber ? userPart(c.phoneNumber) : c.id.endsWith('@s.whatsapp.net') ? userPart(c.id) : '';
     return {
-      id: c.id,
+      id: this.toNeutralJid(c.id),
       name: c.name ?? c.verifiedName,
       pushName: c.notify,
       number,
@@ -148,7 +187,7 @@ export class BaileysSessionStore {
   private toNeutralChat(c: Chat): ChatSummary {
     const last = this.lastMessages.get(c.id);
     return {
-      id: c.id,
+      id: this.toNeutralJid(c.id),
       name: c.name ?? this.resolveContactName(c.id),
       isGroup: c.id.endsWith('@g.us'),
       unreadCount: c.unreadCount ?? 0,

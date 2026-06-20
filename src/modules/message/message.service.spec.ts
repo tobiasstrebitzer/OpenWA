@@ -9,6 +9,7 @@ import { HookManager } from '../../core/hooks';
 import { TemplateService } from '../template/template.service';
 import { Template } from '../template/entities/template.entity';
 import { SsrfBlockedError } from '../../common/security/ssrf-guard';
+import { LidMappingStoreService } from '../../engine/identity/lid-mapping-store.service';
 
 const mockEngineResult = { id: 'wa-msg-1', timestamp: 1706868000 };
 
@@ -38,6 +39,7 @@ describe('MessageService', () => {
   let sessionService: jest.Mocked<Partial<SessionService>>;
   let hookManager: jest.Mocked<Partial<HookManager>>;
   let templateService: jest.Mocked<Partial<TemplateService>>;
+  let lidMappingStore: { lidsForPhone: jest.Mock };
   let mockEngine: ReturnType<typeof createMockEngine>;
 
   // Auto-typing is on by default; disable it for the unrelated send tests so they don't incur the
@@ -77,6 +79,8 @@ describe('MessageService', () => {
       resolve: jest.fn(),
     };
 
+    lidMappingStore = { lidsForPhone: jest.fn().mockReturnValue([]) };
+
     const module: TestingModule = await Test.createTestingModule({
       providers: [
         MessageService,
@@ -84,6 +88,7 @@ describe('MessageService', () => {
         { provide: SessionService, useValue: sessionService },
         { provide: HookManager, useValue: hookManager },
         { provide: TemplateService, useValue: templateService },
+        { provide: LidMappingStoreService, useValue: lidMappingStore },
       ],
     }).compile();
 
@@ -341,6 +346,56 @@ describe('MessageService', () => {
       await service.getMessages('sess-1', { limit: 999, offset: -5 });
       expect(qb.take).toHaveBeenCalledWith(100);
       expect(qb.skip).toHaveBeenCalledWith(0);
+    });
+  });
+
+  // ── getMessages from-filter (lid resolution becomes a hit) ─────────
+  describe('getMessages from-filter resolves a lid to a phone', () => {
+    // A group message whose stored author is an unresolved lid, plus a plain DM from the same person.
+    const lidRow = { id: 'm-lid', from: '111@lid', chatId: 'grp@g.us' } as Message;
+    const dmRow = { id: 'm-dm', from: '628999@c.us', chatId: '628999@c.us' } as Message;
+    const rows = [lidRow, dmRow];
+
+    // A query-builder fake that actually filters by the `from IN (:...froms)` clause it receives, so the
+    // test exercises the resolution-driven expansion end to end (filter -> rows returned).
+    const makeFilteringQb = () => {
+      let froms: string[] | null = null;
+      const qb = {
+        where: jest.fn().mockReturnThis(),
+        orderBy: jest.fn().mockReturnThis(),
+        skip: jest.fn().mockReturnThis(),
+        take: jest.fn().mockReturnThis(),
+        andWhere: jest.fn().mockImplementation((_clause: string, params?: { froms?: string[] }) => {
+          if (params?.froms) froms = params.froms;
+          return qb;
+        }),
+        getManyAndCount: jest.fn().mockImplementation(() => {
+          const matched = froms ? rows.filter(r => froms!.includes(r.from)) : rows;
+          return Promise.resolve([matched, matched.length]);
+        }),
+      };
+      return qb;
+    };
+
+    it('returns the lid-authored message once the table maps the lid to that phone (the hit)', async () => {
+      lidMappingStore.lidsForPhone.mockReturnValue(['111']); // table: lid 111 -> phone 628999
+      const qb = makeFilteringQb();
+      (repository.createQueryBuilder as jest.Mock).mockReturnValue(qb);
+
+      const { messages } = await service.getMessages('sess-1', { from: '628999' });
+
+      expect(lidMappingStore.lidsForPhone).toHaveBeenCalledWith('628999');
+      expect(messages.map(m => m.id).sort()).toEqual(['m-dm', 'm-lid']);
+    });
+
+    it('misses the lid-authored message when the table has no mapping (the prior silent miss)', async () => {
+      lidMappingStore.lidsForPhone.mockReturnValue([]); // unresolved: no lid -> phone row yet
+      const qb = makeFilteringQb();
+      (repository.createQueryBuilder as jest.Mock).mockReturnValue(qb);
+
+      const { messages } = await service.getMessages('sess-1', { from: '628999' });
+
+      expect(messages.map(m => m.id)).toEqual(['m-dm']); // only the @c.us DM matches
     });
   });
 

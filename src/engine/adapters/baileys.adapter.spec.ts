@@ -1329,8 +1329,9 @@ describe('BaileysAdapter contact + chat reads', () => {
     fakeSock.fire('contacts.upsert', [{ id: '628111@s.whatsapp.net', notify: 'Al' }]);
     const contacts = await adapter.getContacts();
     expect(contacts).toHaveLength(1);
-    expect(contacts[0]).toMatchObject({ id: '628111@s.whatsapp.net', pushName: 'Al', number: '628111' });
+    expect(contacts[0]).toMatchObject({ id: '628111@c.us', pushName: 'Al', number: '628111' });
     expect((await adapter.getContactById('628111@s.whatsapp.net'))?.number).toBe('628111');
+    expect((await adapter.getContactById('628111@c.us'))?.id).toBe('628111@c.us'); // neutral id round-trips
     expect(await adapter.getContactById('x@s.whatsapp.net')).toBeNull();
   });
 
@@ -1350,7 +1351,7 @@ describe('BaileysAdapter contact + chat reads', () => {
     await new Promise(r => setImmediate(r));
     const chats = await adapter.getChats();
     expect(chats[0]).toEqual({
-      id: '628111@s.whatsapp.net',
+      id: '628111@c.us',
       name: 'Alice',
       isGroup: false,
       unreadCount: 1,

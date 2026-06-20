@@ -28,6 +28,11 @@ export class MessageController {
   @ApiOperation({ summary: 'Get message history for a session' })
   @ApiParam({ name: 'sessionId', description: 'Session ID' })
   @ApiQuery({ name: 'chatId', required: false, description: 'Filter by chat ID' })
+  @ApiQuery({
+    name: 'from',
+    required: false,
+    description: 'Filter by sender. A phone also matches messages from a lid that resolves to it.',
+  })
   @ApiQuery({ name: 'limit', required: false, type: Number, description: 'Max messages to return (default 50)' })
   @ApiQuery({ name: 'offset', required: false, type: Number, description: 'Offset for pagination' })
   @ApiResponse({
@@ -37,11 +42,13 @@ export class MessageController {
   async getMessages(
     @Param('sessionId') sessionId: string,
     @Query('chatId') chatId?: string,
+    @Query('from') from?: string,
     @Query('limit') limit?: string,
     @Query('offset') offset?: string,
   ) {
     return this.messageService.getMessages(sessionId, {
       chatId,
+      from,
       limit: limit ? parseInt(limit, 10) : undefined,
       offset: offset ? parseInt(offset, 10) : undefined,
     });

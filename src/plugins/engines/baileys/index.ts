@@ -7,6 +7,7 @@ import { PluginContext, PluginType, IEnginePlugin } from '../../../core/plugins'
 import { IWhatsAppEngine } from '../../../engine/interfaces/whatsapp-engine.interface';
 import { BaileysAdapter } from '../../../engine/adapters/baileys.adapter';
 import { BaileysMessageStore } from '../../../engine/types/baileys.types';
+import { LidMappingStore } from '../../../engine/identity/lid-mapping-store.service';
 
 export class BaileysPlugin implements IEnginePlugin {
   type = PluginType.ENGINE as const;
@@ -18,6 +19,7 @@ export class BaileysPlugin implements IEnginePlugin {
   constructor(
     private readonly messageStore?: BaileysMessageStore,
     private readonly registeredConfig?: Record<string, unknown>,
+    private readonly lidMappingStore?: LidMappingStore,
   ) {}
 
   onLoad(context: PluginContext): Promise<void> {
@@ -53,6 +55,7 @@ export class BaileysPlugin implements IEnginePlugin {
       proxyUrl,
       proxyType,
       messageStore: this.messageStore,
+      lidMappingStore: this.lidMappingStore,
     });
   }
 

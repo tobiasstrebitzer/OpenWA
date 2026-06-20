@@ -11,7 +11,8 @@ describe('BaileysSessionStore', () => {
     store.upsertContacts([{ id: '628111@s.whatsapp.net', name: 'Alice' }]); // partial: name added, notify kept
     const c = store.findContact('628111@s.whatsapp.net');
     expect(c).toEqual({
-      id: '628111@s.whatsapp.net',
+      id: '628111@c.us', // listing ids are emitted in the neutral dialect
+
       name: 'Alice',
       pushName: 'Al',
       number: '628111',
@@ -38,7 +39,7 @@ describe('BaileysSessionStore', () => {
     const chats = store.listChats();
     expect(chats).toEqual([
       {
-        id: '628111@s.whatsapp.net',
+        id: '628111@c.us', // listing ids are emitted in the neutral dialect
         name: 'Alice',
         isGroup: false,
         unreadCount: 2,
@@ -172,6 +173,81 @@ describe('BaileysSessionStore', () => {
 
     it('is idempotent on an already-neutral @c.us id', () => {
       expect(store.toNeutralJid('628111@c.us')).toBe('628111@c.us');
+    });
+  });
+
+  describe('neutral contact/chat ids (round-trip)', () => {
+    it('emits @c.us listing ids and accepts a neutral id back on lookup', () => {
+      store.upsertContacts([{ id: '628111@s.whatsapp.net', name: 'Alice' }]);
+      store.upsertChats([{ id: '628111@s.whatsapp.net', name: 'Alice' }]);
+      store.recordMessage({
+        key: { remoteJid: '628111@s.whatsapp.net', fromMe: false, id: 'M1' },
+        message: { conversation: 'hi' },
+        messageTimestamp: 100,
+      });
+      // listing emits the neutral dialect
+      expect(store.listContacts()[0].id).toBe('628111@c.us');
+      expect(store.listChats()[0].id).toBe('628111@c.us');
+      // and the read-back paths accept that same neutral id (folded to the engine dialect internally)
+      expect(store.findContact('628111@c.us')?.id).toBe('628111@c.us');
+      expect(store.lastMessage('628111@c.us')?.key.id).toBe('M1');
+    });
+
+    it('keeps group ids unchanged', () => {
+      store.upsertChats([{ id: '120363-9@g.us', name: 'Team' }]);
+      expect(store.listChats()[0].id).toBe('120363-9@g.us');
+    });
+  });
+
+  describe('persistent lid->phone table', () => {
+    const makeFakeLidStore = () => {
+      const map = new Map<string, string | null>();
+      return {
+        map,
+        getCached: jest.fn((lid: string) => map.get(lid)),
+        lidsForPhone: jest.fn(() => [] as string[]),
+        remember: jest.fn((lid: string, phone: string | null) => {
+          map.set(lid, phone);
+          return Promise.resolve();
+        }),
+      };
+    };
+
+    it('writes learned mappings through to the table (bare digits + session provenance)', () => {
+      const lidStore = makeFakeLidStore();
+      const s = new BaileysSessionStore(lidStore, 'sess-1');
+      s.addLidMappings([{ lid: '111@lid', pn: '628999@s.whatsapp.net' }]);
+      // Baileys 6.7.23 carries the phone in `jid`; the WhatsApp Business shape uses `phoneNumber`.
+      s.upsertContacts([{ id: '222@lid', lid: '222@lid', jid: '628222@s.whatsapp.net' }]);
+      s.upsertContacts([{ id: '333@lid', lid: '333@lid', phoneNumber: '628333@s.whatsapp.net' }]);
+      expect(lidStore.remember).toHaveBeenCalledWith('111', '628999', 'sess-1');
+      expect(lidStore.remember).toHaveBeenCalledWith('222', '628222', 'sess-1');
+      expect(lidStore.remember).toHaveBeenCalledWith('333', '628333', 'sess-1');
+    });
+
+    it('pairs a lid and phone that arrive in separate contact updates', () => {
+      const lidStore = makeFakeLidStore();
+      const s = new BaileysSessionStore(lidStore, 'sess-1');
+      s.upsertContacts([{ id: 'c1', lid: '444@lid' }]); // lid first, no phone yet
+      expect(lidStore.remember).not.toHaveBeenCalled();
+      s.upsertContacts([{ id: 'c1', jid: '628444@s.whatsapp.net' }]); // phone arrives later
+      expect(lidStore.remember).toHaveBeenCalledWith('444', '628444', 'sess-1');
+    });
+
+    it('resolves a lid via the persistent cache when the in-session map misses', () => {
+      const lidStore = makeFakeLidStore();
+      lidStore.map.set('444', '628777'); // known only to the cross-session table
+      const s = new BaileysSessionStore(lidStore, 'sess-1');
+      expect(s.resolvePhone('444@lid')).toBe('628777');
+      expect(s.toNeutralJid('444@lid')).toBe('628777@c.us');
+    });
+
+    it('returns null for a cached-negative or unseen lid', () => {
+      const lidStore = makeFakeLidStore();
+      lidStore.map.set('555', null); // known-but-unresolved
+      const s = new BaileysSessionStore(lidStore, 'sess-1');
+      expect(s.resolvePhone('555@lid')).toBeNull();
+      expect(s.resolvePhone('666@lid')).toBeNull();
     });
   });
 });
