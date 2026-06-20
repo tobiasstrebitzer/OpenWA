@@ -26,7 +26,9 @@ export class AddLidMappings1781200000000 implements MigrationInterface {
   }
 
   public async down(queryRunner: QueryRunner): Promise<void> {
-    await queryRunner.query(`DROP INDEX "IDX_lid_mappings_phone"`);
-    await queryRunner.query(`DROP TABLE "lid_mappings"`);
+    // IF EXISTS so rollback is safe even when the table was created by the `synchronize` path (which
+    // auto-names the index differently) rather than by up()'s explicit `IDX_lid_mappings_phone`.
+    await queryRunner.query(`DROP INDEX IF EXISTS "IDX_lid_mappings_phone"`);
+    await queryRunner.query(`DROP TABLE IF EXISTS "lid_mappings"`);
   }
 }
