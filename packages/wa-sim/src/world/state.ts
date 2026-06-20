@@ -1,8 +1,14 @@
 import {
+  CatalogRecord,
+  ChannelMessageRecord,
+  ChannelRecord,
   ChatRecord,
   ContactRecord,
   GroupRecord,
+  LabelRecord,
   MessageRecord,
+  ProductRecord,
+  StatusRecord,
   WorldEvent,
 } from './types';
 
@@ -14,6 +20,15 @@ export class WorldState {
   private readonly groups = new Map<string, GroupRecord>();
   private readonly messages = new Map<string, MessageRecord>();
   private readonly messageOrder: string[] = [];
+  private readonly labels = new Map<string, LabelRecord>();
+  private readonly chatLabels = new Map<string, Set<string>>();
+  private readonly channels = new Map<string, ChannelRecord>();
+  private readonly channelMessages = new Map<string, ChannelMessageRecord[]>();
+  private readonly statuses = new Map<string, StatusRecord>();
+  private readonly statusOrder: string[] = [];
+  private readonly products = new Map<string, ProductRecord>();
+  private readonly productOrder: string[] = [];
+  private catalog?: CatalogRecord;
 
   apply(event: WorldEvent): void {
     switch (event.kind) {
@@ -61,6 +76,51 @@ export class WorldState {
       case 'block': {
         const contact = this.contacts.get(event.contactId);
         if (contact) contact.isBlocked = event.blocked;
+        break;
+      }
+      case 'label':
+        this.labels.set(event.label.id, { ...event.label });
+        break;
+      case 'chat-label': {
+        const set = this.chatLabels.get(event.chatId) ?? new Set<string>();
+        if (event.applied) set.add(event.labelId);
+        else set.delete(event.labelId);
+        this.chatLabels.set(event.chatId, set);
+        break;
+      }
+      case 'channel': {
+        const prev = this.channels.get(event.channel.id);
+        this.channels.set(event.channel.id, { ...prev, ...event.channel });
+        break;
+      }
+      case 'channel-subscription': {
+        const channel = this.channels.get(event.channelId);
+        if (channel) channel.subscribed = event.subscribed;
+        break;
+      }
+      case 'channel-message': {
+        const list = this.channelMessages.get(event.message.channelId) ?? [];
+        if (!list.some(m => m.id === event.message.id)) list.push({ ...event.message });
+        this.channelMessages.set(event.message.channelId, list);
+        break;
+      }
+      case 'status': {
+        if (!this.statuses.has(event.status.id)) this.statusOrder.push(event.status.id);
+        this.statuses.set(event.status.id, { ...event.status });
+        break;
+      }
+      case 'status-delete': {
+        this.statuses.delete(event.statusId);
+        const i = this.statusOrder.indexOf(event.statusId);
+        if (i >= 0) this.statusOrder.splice(i, 1);
+        break;
+      }
+      case 'catalog':
+        this.catalog = { ...event.catalog };
+        break;
+      case 'product': {
+        if (!this.products.has(event.product.id)) this.productOrder.push(event.product.id);
+        this.products.set(event.product.id, { ...event.product });
         break;
       }
     }
@@ -118,5 +178,62 @@ export class WorldState {
       if (m && m.chatId === chatId) return m;
     }
     return undefined;
+  }
+
+  getLabels(): LabelRecord[] {
+    return [...this.labels.values()];
+  }
+
+  getLabel(id: string): LabelRecord | undefined {
+    return this.labels.get(id);
+  }
+
+  // Labels applied to a chat, in label-definition order.
+  getChatLabels(chatId: string): LabelRecord[] {
+    const ids = this.chatLabels.get(chatId);
+    if (!ids) return [];
+    return [...this.labels.values()].filter(l => ids.has(l.id));
+  }
+
+  getChannels(): ChannelRecord[] {
+    return [...this.channels.values()];
+  }
+
+  getChannel(id: string): ChannelRecord | undefined {
+    return this.channels.get(id);
+  }
+
+  getChannelByInviteCode(inviteCode: string): ChannelRecord | undefined {
+    return [...this.channels.values()].find(c => c.inviteCode === inviteCode);
+  }
+
+  getSubscribedChannels(): ChannelRecord[] {
+    return [...this.channels.values()].filter(c => c.subscribed);
+  }
+
+  // Channel feed in insertion order (oldest first).
+  getChannelMessages(channelId: string): ChannelMessageRecord[] {
+    return [...(this.channelMessages.get(channelId) ?? [])];
+  }
+
+  // All live statuses in post order (oldest first). Expiry is applied by the adapter against its cursor.
+  getStatuses(): StatusRecord[] {
+    return this.statusOrder.map(id => this.statuses.get(id)).filter((s): s is StatusRecord => !!s);
+  }
+
+  getContactStatuses(contactId: string): StatusRecord[] {
+    return this.getStatuses().filter(s => s.contactId === contactId);
+  }
+
+  getCatalog(): CatalogRecord | undefined {
+    return this.catalog;
+  }
+
+  getProducts(): ProductRecord[] {
+    return this.productOrder.map(id => this.products.get(id)).filter((p): p is ProductRecord => !!p);
+  }
+
+  getProduct(id: string): ProductRecord | undefined {
+    return this.products.get(id);
   }
 }

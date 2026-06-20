@@ -67,6 +67,70 @@ export interface MessageMedia {
   data?: string;
 }
 
+// WhatsApp Business label.
+export interface LabelRecord {
+  id: string;
+  name: string;
+  hexColor: string;
+}
+
+// A channel/newsletter the account can subscribe to. `subscribed` is the materialized membership state.
+export interface ChannelRecord {
+  id: Jid;
+  name: string;
+  description?: string;
+  inviteCode?: string;
+  subscriberCount?: number;
+  picture?: string;
+  verified?: boolean;
+  createdAt?: number;
+  subscribed?: boolean;
+}
+
+export interface ChannelMessageRecord {
+  id: string;
+  channelId: Jid;
+  body: string;
+  timestamp: number;
+  hasMedia: boolean;
+  mediaUrl?: string;
+}
+
+// A status/story posted by a contact (or the account itself). Timestamps are ms epoch; the adapter
+// converts to Date and drops entries that have expired relative to the simulation cursor.
+export interface StatusRecord {
+  id: string;
+  contactId: Jid;
+  type: 'text' | 'image' | 'video';
+  caption?: string;
+  mediaUrl?: string;
+  backgroundColor?: string;
+  font?: number;
+  timestamp: number;
+  expiresAt: number;
+}
+
+// The account's WhatsApp Business catalog. `productCount` is derived from the product records.
+export interface CatalogRecord {
+  id: string;
+  name: string;
+  description?: string;
+  url: string;
+}
+
+export interface ProductRecord {
+  id: string;
+  name: string;
+  description?: string;
+  price: number;
+  currency: string;
+  priceFormatted: string;
+  imageUrl?: string;
+  url: string;
+  isAvailable: boolean;
+  retailerId?: string;
+}
+
 export interface MessageRecord {
   id: string;
   chatId: Jid;
@@ -98,7 +162,16 @@ export type WorldEvent =
   | { kind: 'reaction'; t: number; messageId: string; chatId: Jid; senderId: Jid; emoji: string }
   | { kind: 'revoke'; t: number; messageId: string }
   | { kind: 'ack'; t: number; messageId: string; status: DeliveryStatus }
-  | { kind: 'block'; t: number; contactId: Jid; blocked: boolean };
+  | { kind: 'block'; t: number; contactId: Jid; blocked: boolean }
+  | { kind: 'label'; t: number; label: LabelRecord }
+  | { kind: 'chat-label'; t: number; chatId: Jid; labelId: string; applied: boolean }
+  | { kind: 'channel'; t: number; channel: ChannelRecord }
+  | { kind: 'channel-subscription'; t: number; channelId: Jid; subscribed: boolean }
+  | { kind: 'channel-message'; t: number; message: ChannelMessageRecord }
+  | { kind: 'status'; t: number; status: StatusRecord }
+  | { kind: 'status-delete'; t: number; statusId: string }
+  | { kind: 'catalog'; t: number; catalog: CatalogRecord }
+  | { kind: 'product'; t: number; product: ProductRecord };
 
 export interface Scenario {
   name: string;

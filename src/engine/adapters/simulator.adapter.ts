@@ -1,4 +1,12 @@
-import type { Scenario, MessageRecord, GroupRecord, ContactRecord } from '@openwa/wa-sim';
+import type {
+  Scenario,
+  MessageRecord,
+  GroupRecord,
+  ContactRecord,
+  ChannelRecord,
+  StatusRecord,
+  ProductRecord,
+} from '@openwa/wa-sim';
 import { Simulation } from '@openwa/wa-sim';
 import {
   Catalog,
@@ -21,8 +29,10 @@ import {
   MessageType,
   PaginatedProducts,
   Product,
+  ProductQueryOptions,
   Status,
   StatusResult,
+  TextStatusOptions,
 } from '../interfaces/whatsapp-engine.interface';
 
 export interface SimulatorEngineOptions {
@@ -417,70 +427,137 @@ export class SimulatorEngineAdapter implements IWhatsAppEngine {
     return Promise.resolve();
   }
 
-  // ---- Phase-3 long tail (neutral stubs; fleshed out separately) ------------
+  // ---- Labels (WhatsApp Business) ------------------------------------------
 
   getLabels(): Promise<Label[]> {
-    return Promise.resolve([]);
+    return Promise.resolve(this.sim.world.getLabels().map(l => ({ ...l })));
   }
-  getLabelById(): Promise<Label | null> {
-    return Promise.resolve(null);
+
+  getLabelById(labelId: string): Promise<Label | null> {
+    const l = this.sim.world.getLabel(labelId);
+    return Promise.resolve(l ? { ...l } : null);
   }
-  getChatLabels(): Promise<Label[]> {
-    return Promise.resolve([]);
+
+  getChatLabels(chatId: string): Promise<Label[]> {
+    return Promise.resolve(this.sim.world.getChatLabels(chatId).map(l => ({ ...l })));
   }
-  addLabelToChat(): Promise<void> {
+
+  addLabelToChat(chatId: string, labelId: string): Promise<void> {
+    this.sim.append({ kind: 'chat-label', t: 0, chatId, labelId, applied: true });
     return Promise.resolve();
   }
-  removeLabelFromChat(): Promise<void> {
+
+  removeLabelFromChat(chatId: string, labelId: string): Promise<void> {
+    this.sim.append({ kind: 'chat-label', t: 0, chatId, labelId, applied: false });
     return Promise.resolve();
   }
+
+  // ---- Channels / Newsletter -----------------------------------------------
+
   getSubscribedChannels(): Promise<Channel[]> {
-    return Promise.resolve([]);
+    return Promise.resolve(this.sim.world.getSubscribedChannels().map(c => this.toChannel(c)));
   }
-  getChannelById(): Promise<Channel | null> {
-    return Promise.resolve(null);
+
+  getChannelById(channelId: string): Promise<Channel | null> {
+    const c = this.sim.world.getChannel(channelId);
+    return Promise.resolve(c ? this.toChannel(c) : null);
   }
-  subscribeToChannel(): Promise<Channel> {
-    return Promise.reject(new Error('channels are not simulated'));
+
+  subscribeToChannel(inviteCode: string): Promise<Channel> {
+    const c = this.sim.world.getChannelByInviteCode(inviteCode);
+    if (!c) return Promise.reject(new Error(`no channel for invite code ${inviteCode}`));
+    this.sim.append({ kind: 'channel-subscription', t: 0, channelId: c.id, subscribed: true });
+    return Promise.resolve(this.toChannel({ ...c, subscribed: true }));
   }
-  unsubscribeFromChannel(): Promise<void> {
+
+  unsubscribeFromChannel(channelId: string): Promise<void> {
+    this.sim.append({ kind: 'channel-subscription', t: 0, channelId, subscribed: false });
     return Promise.resolve();
   }
-  getChannelMessages(): Promise<ChannelMessage[]> {
-    return Promise.resolve([]);
+
+  getChannelMessages(channelId: string, limit?: number): Promise<ChannelMessage[]> {
+    const msgs = this.sim.world.getChannelMessages(channelId).map(m => ({
+      id: m.id,
+      body: m.body,
+      timestamp: m.timestamp,
+      hasMedia: m.hasMedia,
+      mediaUrl: m.mediaUrl,
+    }));
+    return Promise.resolve(typeof limit === 'number' ? msgs.slice(-limit) : msgs);
   }
+
+  // ---- Status / Stories ----------------------------------------------------
+
   getContactStatuses(): Promise<Status[]> {
-    return Promise.resolve([]);
+    return Promise.resolve(this.liveStatuses().map(s => this.toStatus(s)));
   }
-  getContactStatus(): Promise<Status[]> {
-    return Promise.resolve([]);
+
+  getContactStatus(contactId: string): Promise<Status[]> {
+    return Promise.resolve(
+      this.liveStatuses()
+        .filter(s => s.contactId === contactId)
+        .map(s => this.toStatus(s)),
+    );
   }
-  postTextStatus(): Promise<StatusResult> {
-    return Promise.reject(new Error('status posting is not simulated'));
+
+  postTextStatus(text: string, options?: TextStatusOptions): Promise<StatusResult> {
+    return Promise.resolve(
+      this.appendStatus('text', { caption: text, backgroundColor: options?.backgroundColor, font: options?.font }),
+    );
   }
-  postImageStatus(): Promise<StatusResult> {
-    return Promise.reject(new Error('status posting is not simulated'));
+
+  postImageStatus(media: MediaInput, caption?: string): Promise<StatusResult> {
+    return Promise.resolve(this.appendStatus('image', { caption, mediaUrl: this.mediaUrl(media) }));
   }
-  postVideoStatus(): Promise<StatusResult> {
-    return Promise.reject(new Error('status posting is not simulated'));
+
+  postVideoStatus(media: MediaInput, caption?: string): Promise<StatusResult> {
+    return Promise.resolve(this.appendStatus('video', { caption, mediaUrl: this.mediaUrl(media) }));
   }
-  deleteStatus(): Promise<void> {
+
+  deleteStatus(statusId: string): Promise<void> {
+    this.sim.append({ kind: 'status-delete', t: 0, statusId });
     return Promise.resolve();
   }
+
+  // ---- Catalog (WhatsApp Business) -----------------------------------------
+
   getCatalog(): Promise<Catalog | null> {
-    return Promise.resolve(null);
+    const c = this.sim.world.getCatalog();
+    if (!c) return Promise.resolve(null);
+    return Promise.resolve({
+      id: c.id,
+      name: c.name,
+      description: c.description,
+      productCount: this.sim.world.getProducts().length,
+      url: c.url,
+    });
   }
-  getProducts(): Promise<PaginatedProducts> {
-    return Promise.resolve({ products: [], pagination: { page: 1, limit: 0, total: 0, totalPages: 0 } });
+
+  getProducts(options?: ProductQueryOptions): Promise<PaginatedProducts> {
+    const all = this.sim.world.getProducts();
+    const page = options?.page && options.page > 0 ? options.page : 1;
+    const limit = options?.limit && options.limit > 0 ? options.limit : all.length;
+    const start = (page - 1) * limit;
+    const products = all.slice(start, start + limit).map(p => this.toProduct(p));
+    return Promise.resolve({
+      products,
+      pagination: { page, limit, total: all.length, totalPages: limit > 0 ? Math.ceil(all.length / limit) : 0 },
+    });
   }
-  getProduct(): Promise<Product | null> {
-    return Promise.resolve(null);
+
+  getProduct(productId: string): Promise<Product | null> {
+    const p = this.sim.world.getProduct(productId);
+    return Promise.resolve(p ? this.toProduct(p) : null);
   }
+
   sendProduct(chatId: string, productId: string, body?: string): Promise<MessageResult> {
-    return Promise.resolve(this.appendOutgoing(chatId, body ?? productId, 'text'));
+    const p = this.sim.world.getProduct(productId);
+    return Promise.resolve(this.appendOutgoing(chatId, body ?? p?.name ?? productId, 'text'));
   }
+
   sendCatalog(chatId: string, body?: string): Promise<MessageResult> {
-    return Promise.resolve(this.appendOutgoing(chatId, body ?? '', 'text'));
+    const c = this.sim.world.getCatalog();
+    return Promise.resolve(this.appendOutgoing(chatId, body ?? c?.name ?? '', 'text'));
   }
 
   // ---- Helpers -------------------------------------------------------------
@@ -585,6 +662,57 @@ export class SimulatorEngineAdapter implements IWhatsAppEngine {
       isAdmin: g.participants.find(p => p.id === this.meJid)?.isAdmin,
       linkedParentJID: g.linkedParentJID,
     };
+  }
+
+  private toChannel(c: ChannelRecord): Channel {
+    return {
+      id: c.id,
+      name: c.name,
+      description: c.description,
+      inviteCode: c.inviteCode,
+      subscriberCount: c.subscriberCount,
+      picture: c.picture,
+      verified: c.verified,
+      createdAt: c.createdAt,
+    };
+  }
+
+  // Statuses still within their 24h window relative to the simulation cursor.
+  private liveStatuses(): StatusRecord[] {
+    const now = this.sim.now;
+    return this.sim.world.getStatuses().filter(s => s.expiresAt > now);
+  }
+
+  private toStatus(s: StatusRecord): Status {
+    const contact = this.sim.world.getContact(s.contactId);
+    return {
+      id: s.id,
+      contact: { id: s.contactId, name: contact?.name, pushName: contact?.pushName },
+      type: s.type,
+      caption: s.caption,
+      mediaUrl: s.mediaUrl,
+      backgroundColor: s.backgroundColor,
+      font: s.font,
+      timestamp: new Date(s.timestamp),
+      expiresAt: new Date(s.expiresAt),
+    };
+  }
+
+  private appendStatus(type: StatusRecord['type'], extra: Partial<StatusRecord>): StatusResult {
+    const id = this.nextId('STATUS');
+    const timestamp = Date.now();
+    const expiresAt = timestamp + 24 * 60 * 60 * 1000;
+    const record: StatusRecord = { id, contactId: this.meJid, type, timestamp, expiresAt, ...extra };
+    this.sim.append({ kind: 'status', t: 0, status: record });
+    return { statusId: id, timestamp: new Date(timestamp), expiresAt: new Date(expiresAt) };
+  }
+
+  private toProduct(p: ProductRecord): Product {
+    return { ...p };
+  }
+
+  private mediaUrl(media: MediaInput): string {
+    return typeof media.data === 'string' ? media.data : `sim://status/${++this.seq}`;
   }
 
   private nextId(prefix: string): string {

@@ -29,7 +29,9 @@ describe('Simulator engine (e2e)', () => {
   let apiKeyId: string;
 
   const ALICE = '14155550101@c.us';
+  const BOB = '14155550102@c.us';
   const GROUP = '120363000000000001@g.us';
+  const NEWS_CHANNEL = '120363111111111111@newsletter';
 
   const saved: Record<string, string | undefined> = {};
   const setEnv = (key: string, value: string): void => {
@@ -141,5 +143,76 @@ describe('Simulator engine (e2e)', () => {
       else await new Promise(r => setTimeout(r, 50));
     }
     expect(found).toBe(true);
+  });
+
+  it('serves business labels and applies one to a chat', async () => {
+    const labels = await auth(request(app.getHttpServer()).get(`/api/sessions/${sessionId}/labels`)).expect(200);
+    const names = (labels.body as Array<{ name: string }>).map(l => l.name);
+    expect(names).toEqual(expect.arrayContaining(['Lead', 'Customer']));
+
+    const aliceLabels = await auth(
+      request(app.getHttpServer()).get(`/api/sessions/${sessionId}/labels/chat/${ALICE}`),
+    ).expect(200);
+    expect((aliceLabels.body as Array<{ name: string }>).map(l => l.name)).toEqual(['Lead']);
+
+    await auth(request(app.getHttpServer()).post(`/api/sessions/${sessionId}/labels/chat/${BOB}`))
+      .send({ labelId: 'LBL_CUSTOMER' })
+      .expect(201);
+
+    const bobLabels = await auth(
+      request(app.getHttpServer()).get(`/api/sessions/${sessionId}/labels/chat/${BOB}`),
+    ).expect(200);
+    expect((bobLabels.body as Array<{ name: string }>).map(l => l.name)).toEqual(['Customer']);
+  });
+
+  it('lists subscribed channels, reads their feed, and subscribes via invite code', async () => {
+    const subscribed = await auth(request(app.getHttpServer()).get(`/api/sessions/${sessionId}/channels`)).expect(200);
+    const names = (subscribed.body as Array<{ name: string }>).map(c => c.name);
+    expect(names).toEqual(['OpenWA News']); // Tech Daily is not subscribed yet
+
+    const feed = await auth(
+      request(app.getHttpServer()).get(`/api/sessions/${sessionId}/channels/${NEWS_CHANNEL}/messages`),
+    ).expect(200);
+    expect((feed.body as Array<{ body: string }>)[0].body).toContain('v0.4.6');
+
+    await auth(request(app.getHttpServer()).post(`/api/sessions/${sessionId}/channels/subscribe`))
+      .send({ inviteCode: 'tech-daily-invite' })
+      .expect(201);
+
+    const after = await auth(request(app.getHttpServer()).get(`/api/sessions/${sessionId}/channels`)).expect(200);
+    expect((after.body as Array<{ name: string }>).map(c => c.name)).toEqual(
+      expect.arrayContaining(['OpenWA News', 'Tech Daily']),
+    );
+  });
+
+  it('serves contact statuses and posts an own text status', async () => {
+    const statuses = await auth(request(app.getHttpServer()).get(`/api/sessions/${sessionId}/status`)).expect(200);
+    const captions = (statuses.body as { statuses: Array<{ caption?: string }> }).statuses.map(s => s.caption);
+    expect(captions).toContain('Out for lunch 🍜');
+
+    const posted = await auth(request(app.getHttpServer()).post(`/api/sessions/${sessionId}/status/send-text`))
+      .send({ text: 'Back online', backgroundColor: '#25D366' })
+      .expect(201);
+    expect((posted.body as { statusId: string }).statusId).toBeTruthy();
+  });
+
+  it('serves the business catalog, its products, and sends a product message', async () => {
+    const catalog = await auth(request(app.getHttpServer()).get(`/api/sessions/${sessionId}/catalog`)).expect(200);
+    const cat = catalog.body as { name: string; productCount: number };
+    expect(cat.name).toBe('OpenWA Store');
+    expect(cat.productCount).toBe(2);
+
+    const products = await auth(request(app.getHttpServer()).get(`/api/sessions/${sessionId}/catalog/products`)).expect(
+      200,
+    );
+    const list = (products.body as { products: Array<{ id: string; name: string }> }).products;
+    expect(list.map(p => p.name)).toEqual(expect.arrayContaining(['Starter Plan', 'Pro Plan']));
+
+    const sent = await auth(request(app.getHttpServer()).post(`/api/sessions/${sessionId}/messages/send-product`))
+      .send({ chatId: ALICE, productId: 'PROD_0001' })
+      .expect(201);
+    expect(
+      (sent.body as { messageId?: string; id?: string }).messageId ?? (sent.body as { id?: string }).id,
+    ).toBeTruthy();
   });
 });

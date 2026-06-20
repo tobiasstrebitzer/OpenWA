@@ -83,6 +83,115 @@
         "isGroup": true,
         "reactions": [{ "emoji": "👍", "senderId": "14155550101@c.us", "timestamp": 1700000300000 }]
       }
+    },
+    {
+      "kind": "label",
+      "t": 1700000300000,
+      "label": { "id": "LBL_LEAD", "name": "Lead", "hexColor": "#34B7F1" }
+    },
+    {
+      "kind": "label",
+      "t": 1700000300000,
+      "label": { "id": "LBL_CUSTOMER", "name": "Customer", "hexColor": "#25D366" }
+    },
+    {
+      "kind": "chat-label",
+      "t": 1700000310000,
+      "chatId": "14155550101@c.us",
+      "labelId": "LBL_LEAD",
+      "applied": true
+    },
+    {
+      "kind": "channel",
+      "t": 1700000320000,
+      "channel": {
+        "id": "120363111111111111@newsletter",
+        "name": "OpenWA News",
+        "description": "Release notes and announcements",
+        "inviteCode": "openwa-news",
+        "subscriberCount": 1200,
+        "verified": true,
+        "createdAt": 1699000000000,
+        "subscribed": true
+      }
+    },
+    {
+      "kind": "channel",
+      "t": 1700000320000,
+      "channel": {
+        "id": "120363222222222222@newsletter",
+        "name": "Tech Daily",
+        "description": "Daily tech digest",
+        "inviteCode": "tech-daily-invite",
+        "subscriberCount": 5000,
+        "verified": false,
+        "createdAt": 1698000000000,
+        "subscribed": false
+      }
+    },
+    {
+      "kind": "channel-message",
+      "t": 1700000330000,
+      "message": {
+        "id": "CHMSG_0001",
+        "channelId": "120363111111111111@newsletter",
+        "body": "OpenWA v0.4.6 is out - smarter webhooks and a new dashboard.",
+        "timestamp": 1700000330000,
+        "hasMedia": false
+      }
+    },
+    {
+      "kind": "status",
+      "t": 1700000350000,
+      "status": {
+        "id": "STATUS_0001",
+        "contactId": "14155550101@c.us",
+        "type": "text",
+        "caption": "Out for lunch 🍜",
+        "backgroundColor": "#0A7CFF",
+        "timestamp": 1700000350000,
+        "expiresAt": 1700086750000
+      }
+    },
+    {
+      "kind": "catalog",
+      "t": 1700000360000,
+      "catalog": {
+        "id": "CAT_0001",
+        "name": "OpenWA Store",
+        "description": "Plans and add-ons",
+        "url": "https://wa.me/c/14155550100"
+      }
+    },
+    {
+      "kind": "product",
+      "t": 1700000370000,
+      "product": {
+        "id": "PROD_0001",
+        "name": "Starter Plan",
+        "description": "For small teams getting started",
+        "price": 9.99,
+        "currency": "USD",
+        "priceFormatted": "$9.99",
+        "url": "https://wa.me/p/PROD_0001/14155550100",
+        "isAvailable": true,
+        "retailerId": "SKU-START"
+      }
+    },
+    {
+      "kind": "product",
+      "t": 1700000380000,
+      "product": {
+        "id": "PROD_0002",
+        "name": "Pro Plan",
+        "description": "For growing businesses",
+        "price": 29.99,
+        "currency": "USD",
+        "priceFormatted": "$29.99",
+        "url": "https://wa.me/p/PROD_0002/14155550100",
+        "isAvailable": true,
+        "retailerId": "SKU-PRO"
+      }
     }
   ]
 }
