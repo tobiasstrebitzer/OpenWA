@@ -5,6 +5,25 @@
   overflow-x: hidden;
 }
 
+/* Webhook create/edit modal: roomier than the default 480px (filters need width). */
+.webhooks-page .modal:not(.modal-sm) {
+  max-width: 640px;
+}
+
+/* Consistent vertical rhythm between top-level form blocks in the webhook modals.
+   Direct-child only, so nested FilterBuilder inputs/selects are untouched. */
+.webhooks-page .modal-body > input,
+.webhooks-page .modal-body > select,
+.webhooks-page .modal-body > .event-tags {
+  margin-bottom: 0.75rem;
+}
+
+.webhooks-page .modal-body > .event-tags {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 0.5rem;
+}
+
 .page-header {
   margin-bottom: 2rem;
 }
@@ -214,6 +233,71 @@
   background: var(--primary);
   color: white;
   border-color: var(--primary);
+}
+
+.filter-badge {
+  display: inline-flex;
+  align-items: center;
+  gap: 0.25rem;
+  padding: 0.25rem 0.5rem;
+  border-radius: 6px;
+  font-size: 0.7rem;
+  font-weight: 600;
+  white-space: nowrap;
+  background: var(--bg-light);
+  color: var(--text-secondary);
+  border: 1px solid var(--border);
+}
+
+.filter-badge-interactive {
+  position: relative;
+  cursor: default;
+  outline: none;
+}
+
+.filter-badge-interactive:hover,
+.filter-badge-interactive:focus-visible {
+  border-color: var(--primary);
+  color: var(--text-primary);
+}
+
+/* Fixed-positioned (escapes the card's overflow:hidden); coordinates set inline from the badge rect. */
+.filter-popover {
+  position: fixed;
+  z-index: 100;
+  min-width: 200px;
+  max-width: 340px;
+  padding: 0.5rem 0.625rem;
+  background: var(--bg-white);
+  border: 1px solid var(--border);
+  border-radius: 8px;
+  box-shadow: 0 6px 20px rgba(0, 0, 0, 0.16);
+  display: flex;
+  flex-direction: column;
+  gap: 0.25rem;
+  font-weight: 500;
+  white-space: normal;
+  cursor: default;
+}
+
+.filter-popover-title {
+  font-size: 0.65rem;
+  font-weight: 700;
+  text-transform: uppercase;
+  letter-spacing: 0.04em;
+  color: var(--text-secondary);
+  margin-bottom: 0.125rem;
+}
+
+.filter-popover-row {
+  font-size: 0.78rem;
+  color: var(--text-primary);
+  word-break: break-word;
+}
+
+.filter-popover-row + .filter-popover-row {
+  padding-top: 0.25rem;
+  border-top: 1px solid var(--border);
 }
 
 .status-badge {

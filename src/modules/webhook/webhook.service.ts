@@ -10,6 +10,7 @@ import { CreateWebhookDto, UpdateWebhookDto } from './dto';
 import { createLogger } from '../../common/services/logger.service';
 import { QUEUE_NAMES } from '../queue/queue-names';
 import { generateIdempotencyKey, generateDeliveryId } from './utils/idempotency.util';
+import { evaluateFilters } from './filters/filter-evaluator';
 import {
   assertSafeFetchUrl,
   withSafeFetch,
@@ -80,6 +81,7 @@ export class WebhookService {
       events: dto.events || ['message.received'],
       secret: dto.secret || null,
       headers: dto.headers || {},
+      filters: dto.filters ?? null,
       retryCount: dto.retryCount ?? 3,
     });
 
@@ -125,6 +127,7 @@ export class WebhookService {
     // not a stored blank that silently disables signing while looking configured.
     if (dto.secret !== undefined) webhook.secret = dto.secret || null;
     if (dto.headers !== undefined) webhook.headers = dto.headers;
+    if (dto.filters !== undefined) webhook.filters = dto.filters;
     if (dto.active !== undefined) webhook.active = dto.active;
     if (dto.retryCount !== undefined) webhook.retryCount = dto.retryCount;
 
@@ -205,7 +208,9 @@ export class WebhookService {
       return;
     }
 
-    const matchingWebhooks = webhooks.filter(w => w.events.includes(event) || w.events.includes('*'));
+    const matchingWebhooks = webhooks.filter(
+      w => (w.events.includes(event) || w.events.includes('*')) && evaluateFilters(w.filters, event, data),
+    );
 
     // Generate idempotency key (same for all webhooks receiving this event). occurredAt is captured
     // once here and reused for every retry of this dispatch, so recurring lifecycle events get a
