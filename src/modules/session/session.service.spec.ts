@@ -4,7 +4,7 @@ import { Repository, DataSource, In } from 'typeorm';
 import { NotFoundException, ConflictException, BadRequestException } from '@nestjs/common';
 import { SessionService, ACK_RECONCILE_DELAY_MS } from './session.service';
 import { Session, SessionStatus } from './entities/session.entity';
-import { Message, MessageStatus } from '../message/entities/message.entity';
+import { Message, MessageStatus, MessageDirection } from '../message/entities/message.entity';
 import { EngineFactory } from '../../engine/engine.factory';
 import { EventsGateway } from '../events/events.gateway';
 import { WebhookService } from '../webhook/webhook.service';
@@ -46,6 +46,7 @@ describe('SessionService', () => {
       count: jest.fn(),
       find: jest.fn(),
       findOne: jest.fn(),
+      existsBy: jest.fn().mockResolvedValue(true),
       create: jest.fn(),
       save: jest.fn(),
       remove: jest.fn(),
@@ -55,6 +56,7 @@ describe('SessionService', () => {
     messageRepository = {
       find: jest.fn().mockResolvedValue([]),
       findOne: jest.fn().mockResolvedValue(null),
+      existsBy: jest.fn().mockResolvedValue(false),
       create: jest.fn(),
       save: jest.fn().mockResolvedValue(undefined),
       update: jest.fn().mockResolvedValue({ affected: 1 }),
@@ -576,19 +578,98 @@ describe('SessionService', () => {
       expect(sent[0][0]).toBe('sess-uuid-1');
     });
 
-    it('does NOT persist an outgoing (message_create) self-message to the messages table', async () => {
-      // Contract lock: message_create also fires for API sends (already persisted by the REST send
-      // path), so a naive save here would double-persist. Phone-composed sends are therefore
-      // webhooked/emitted but not mirrored to local history; safe persistence (unique index + dedup)
-      // is a separate enhancement. This guards against the omission silently changing.
+    it('persists an outgoing (message_create) send absent from history (phone-composed) after the reconcile recheck', async () => {
       const callbacks = await startAndCaptureCallbacks();
+      // Pass the message through the `message:sent` hook so the handler sees its real id/chatId.
+      (hookManager.execute as jest.Mock).mockImplementation((_event: string, data: unknown) =>
+        Promise.resolve({ continue: true, data }),
+      );
+      (messageRepository.existsBy as jest.Mock).mockResolvedValue(false); // not stored by the REST path
+      (messageRepository.create as jest.Mock).mockImplementation((e: unknown) => e);
 
-      callbacks.onMessageCreate!(makeMessage({ id: 'wa-out-2', from: 'me@c.us', to: 'peer@c.us', fromMe: true }));
-      await flush();
+      jest.useFakeTimers();
+      try {
+        callbacks.onMessageCreate!(
+          makeMessage({ id: 'wa-out-2', from: 'me@c.us', to: 'peer@c.us', chatId: 'peer@c.us', fromMe: true }),
+        );
+        await jest.advanceTimersByTimeAsync(0); // first existence check resolves
+        expect(messageRepository.save).not.toHaveBeenCalled(); // waits one recheck before inserting
 
-      expect(dispatchedEvents('message.sent')).toHaveLength(1); // it IS webhooked/emitted
-      expect(messageRepository.create).not.toHaveBeenCalled(); // but NOT persisted
-      expect(messageRepository.save).not.toHaveBeenCalled();
+        await jest.advanceTimersByTimeAsync(ACK_RECONCILE_DELAY_MS); // still absent -> insert
+        expect(messageRepository.create).toHaveBeenCalledWith(
+          expect.objectContaining({
+            sessionId: 'sess-uuid-1',
+            waMessageId: 'wa-out-2',
+            chatId: 'peer@c.us',
+            direction: MessageDirection.OUTGOING,
+            status: MessageStatus.SENT,
+          }),
+        );
+        expect(messageRepository.save).toHaveBeenCalledTimes(1);
+      } finally {
+        jest.useRealTimers();
+      }
+
+      expect(dispatchedEvents('message.sent')).toHaveLength(1); // still webhooked/emitted
+    });
+
+    it('does NOT double-persist an outgoing (message_create) send already stored by the REST path', async () => {
+      const callbacks = await startAndCaptureCallbacks();
+      (hookManager.execute as jest.Mock).mockImplementation((_event: string, data: unknown) =>
+        Promise.resolve({ continue: true, data }),
+      );
+      (messageRepository.existsBy as jest.Mock).mockResolvedValue(true); // REST send already persisted it
+
+      jest.useFakeTimers();
+      try {
+        callbacks.onMessageCreate!(makeMessage({ id: 'wa-out-3', from: 'me@c.us', to: 'peer@c.us', fromMe: true }));
+        await jest.advanceTimersByTimeAsync(ACK_RECONCILE_DELAY_MS);
+        expect(messageRepository.create).not.toHaveBeenCalled();
+        expect(messageRepository.save).not.toHaveBeenCalled();
+      } finally {
+        jest.useRealTimers();
+      }
+
+      expect(dispatchedEvents('message.sent')).toHaveLength(1); // it IS still webhooked/emitted
+    });
+
+    it('does NOT insert an outgoing send whose session was deleted during the reconcile delay', async () => {
+      const callbacks = await startAndCaptureCallbacks();
+      (hookManager.execute as jest.Mock).mockImplementation((_event: string, data: unknown) =>
+        Promise.resolve({ continue: true, data }),
+      );
+      (messageRepository.existsBy as jest.Mock).mockResolvedValue(false); // genuinely engine-originated
+      (repository.existsBy as jest.Mock).mockResolvedValue(false); // ...but the session is gone now
+
+      jest.useFakeTimers();
+      try {
+        callbacks.onMessageCreate!(
+          makeMessage({ id: 'wa-out-4', from: 'me@c.us', to: 'peer@c.us', chatId: 'peer@c.us', fromMe: true }),
+        );
+        await jest.advanceTimersByTimeAsync(ACK_RECONCILE_DELAY_MS);
+        expect(messageRepository.create).not.toHaveBeenCalled(); // no orphan row for a dead session
+        expect(messageRepository.save).not.toHaveBeenCalled();
+      } finally {
+        jest.useRealTimers();
+      }
+    });
+
+    it('skips an outgoing message_create missing chatId/from/to (NOT NULL columns)', async () => {
+      const callbacks = await startAndCaptureCallbacks();
+      (hookManager.execute as jest.Mock).mockImplementation((_event: string, data: unknown) =>
+        Promise.resolve({ continue: true, data }),
+      );
+
+      jest.useFakeTimers();
+      try {
+        // A protocol/system message_create with no chat target - must not reach existsBy/insert.
+        callbacks.onMessageCreate!(makeMessage({ id: 'wa-out-5', from: '', to: '', chatId: '', fromMe: true }));
+        await jest.advanceTimersByTimeAsync(ACK_RECONCILE_DELAY_MS);
+        expect(messageRepository.existsBy).not.toHaveBeenCalled();
+        expect(messageRepository.save).not.toHaveBeenCalled();
+      } finally {
+        jest.useRealTimers();
+      }
     });
 
     it('scopes the ack status UPDATE by sessionId, not just waMessageId', async () => {

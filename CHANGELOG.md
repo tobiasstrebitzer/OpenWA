@@ -7,6 +7,16 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ## [Unreleased]
 
+### Fixed
+
+- **Outgoing sends composed outside the REST API now appear in chat history.** The `message_create`
+  engine event (which fires for sends composed on a linked phone, and for engine-originated sends)
+  was webhooked and emitted over WebSocket but never mirrored to the `messages` table, so the
+  dashboard Chat panel showed only inbound messages plus API sends - the rest of the conversation
+  vanished on reload. These sends are now persisted, de-duplicated on `(sessionId, waMessageId)`
+  against the rows the REST send path already writes (a first miss is re-checked once after a short
+  delay to absorb the write race, mirroring the ack-reconcile path), so no message is double-stored.
+
 ## [0.4.6] - 2026-06-20
 
 A reliability, correctness, and dashboard release. **Identity & engine:** Baileys gains a persistent,

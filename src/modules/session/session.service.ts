@@ -591,13 +591,13 @@ export class SessionService implements OnModuleDestroy, OnModuleInit, OnApplicat
               return;
             }
 
-            // NOTE: unlike onMessage (incoming), this path intentionally does NOT mirror the message
-            // to the `messages` table. message_create ALSO fires for API-originated sends, which the
-            // REST send path already persists — saving here would double-persist them. Safe
-            // persistence of phone-composed sends needs a unique (sessionId, waMessageId) index +
-            // de-dup and is tracked as a separate enhancement; until then this path only webhooks/
-            // emits. So local message history reflects API sends + all inbound, but not sends
-            // composed on a linked phone.
+            // Mirror the send into the `messages` table so DB-backed chat history is complete -
+            // including sends composed on a linked phone (and engine-originated sends), which only
+            // ever surface via message_create. message_create ALSO fires for API sends that the REST
+            // path already persisted, so this de-dups on (sessionId, waMessageId) to avoid a double
+            // row (see persistOutgoingIfAbsent).
+            this.persistOutgoingIfAbsent(id, finalMessage);
+
             void this.webhookService.dispatch(id, 'message.sent', finalMessage);
             // Emit real-time event to WebSocket clients (as message.sent, not message.received)
             this.eventsGateway.emitMessageSent(id, finalMessage);
@@ -1030,6 +1030,79 @@ export class SessionService implements OnModuleDestroy, OnModuleInit, OnApplicat
     }
     this.lidPhoneCache.set(key, phone);
     return phone;
+  }
+
+  /**
+   * Persist an outgoing `message_create` (a send composed on a linked phone, or engine-originated)
+   * into the messages table so DB-backed chat history reflects the full conversation, not just
+   * inbound + API sends.
+   *
+   * message_create ALSO fires for API sends, which the REST send path already persists, so this
+   * de-dups on (sessionId, waMessageId). That REST path writes the waMessageId in a 2nd save that
+   * may not have committed when this fires - and some engines emit message_create synchronously
+   * during the send - so a first miss is re-checked once after ACK_RECONCILE_DELAY_MS before
+   * inserting, mirroring the ack reconcile race. Best-effort and fire-and-forget like the rest of
+   * the engine-event handlers.
+   */
+  private persistOutgoingIfAbsent(sessionId: string, message: IncomingMessage): void {
+    const waMessageId = message.id;
+    // chatId/from/to are NOT NULL columns; a malformed message_create (e.g. a protocol/system event)
+    // missing any of them would fail the insert. Skip such events rather than churn an error log -
+    // they carry no conversational content to render anyway.
+    if (!waMessageId || !message.chatId || !message.from || !message.to) {
+      return;
+    }
+
+    const exists = (): Promise<boolean> => this.messageRepository.existsBy({ sessionId, waMessageId });
+
+    const insert = async (): Promise<void> => {
+      // The session may have been deleted during the reconcile delay. messages has no FK cascade on
+      // sessionId, so a blind insert would resurrect an orphan row for a dead session; skip it.
+      if (!(await this.sessionRepository.existsBy({ id: sessionId }))) {
+        return;
+      }
+      const metadata: Record<string, unknown> = {};
+      if (message.media) {
+        metadata.media = message.media;
+      }
+      if (message.quotedMessage) {
+        metadata.quotedMessage = message.quotedMessage;
+      }
+      const dbMessage = this.messageRepository.create({
+        sessionId,
+        waMessageId,
+        chatId: message.chatId,
+        from: message.from,
+        to: message.to,
+        body: message.body,
+        type: message.type,
+        direction: MessageDirection.OUTGOING,
+        timestamp: message.timestamp,
+        status: MessageStatus.SENT,
+        metadata: Object.keys(metadata).length > 0 ? metadata : undefined,
+      });
+      await this.messageRepository.save(dbMessage);
+    };
+
+    const onError = (err: unknown): void =>
+      this.logger.error(`Failed to persist outgoing message ${waMessageId}`, String(err));
+
+    void exists()
+      .then(found => {
+        if (found) {
+          return;
+        }
+        // First miss: the REST send's 2nd save (which writes waMessageId) may not have committed yet.
+        // Re-check once after a short delay; only insert if the row is still absent, i.e. the
+        // send is genuinely engine-originated (phone-composed / simulator), not an API send.
+        const timer = setTimeout(() => {
+          void exists()
+            .then(nowFound => (nowFound ? undefined : insert()))
+            .catch(onError);
+        }, ACK_RECONCILE_DELAY_MS);
+        timer.unref?.();
+      })
+      .catch(onError);
   }
 
   async getGroups(id: string): Promise<{ id: string; name: string; linkedParentJID?: string | null }[]> {
