@@ -277,7 +277,6 @@
       "caseSensitive": "Case sensitive",
       "contactPlaceholder": "Number or WhatsApp ID...",
       "textPlaceholder": "Text to match...",
-      "regexPlaceholder": "Regular expression...",
       "addValue": "Add \"{{value}}\"",
       "yes": "Yes",
       "no": "No",
@@ -295,8 +294,7 @@
         "is": "is",
         "isNot": "is not",
         "contains": "contains",
-        "equals": "equals",
-        "matches": "matches regex"
+        "equals": "equals"
       }
     },
     "columns": {

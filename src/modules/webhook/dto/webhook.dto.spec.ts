@@ -70,15 +70,10 @@ describe('webhook DTO filter validation', () => {
     expect(errs.some(e => e.property === 'filters')).toBe(true);
   });
 
-  it('rejects an uncompilable regex', async () => {
-    const errs = await errorsFor(CreateWebhookDto, withFilters([{ field: 'body', operator: 'matches', value: '(' }]));
-    expect(errs.some(e => e.property === 'filters')).toBe(true);
-  });
-
-  it('rejects a catastrophic-backtracking regex pattern', async () => {
+  it('rejects the removed "matches" (regex) operator', async () => {
     const errs = await errorsFor(
       CreateWebhookDto,
-      withFilters([{ field: 'body', operator: 'matches', value: '(a+)+' }]),
+      withFilters([{ field: 'body', operator: 'matches', value: '^order' }]),
     );
     expect(errs.some(e => e.property === 'filters')).toBe(true);
   });

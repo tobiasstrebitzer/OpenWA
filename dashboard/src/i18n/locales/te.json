@@ -277,7 +277,6 @@
       "caseSensitive": "కేస్ సెన్సిటివ్",
       "contactPlaceholder": "నంబర్ లేదా WhatsApp ID...",
       "textPlaceholder": "సరిపోల్చాల్సిన టెక్స్ట్...",
-      "regexPlaceholder": "రెగ్యులర్ ఎక్స్‌ప్రెషన్...",
       "addValue": "\"{{value}}\" జోడించు",
       "yes": "అవును",
       "no": "కాదు",
@@ -295,8 +294,7 @@
         "is": "అనేది",
         "isNot": "కాదు",
         "contains": "కలిగి ఉంది",
-        "equals": "సమానం",
-        "matches": "రెగ్యెక్స్‌తో సరిపోలుతుంది"
+        "equals": "సమానం"
       }
     },
     "columns": {

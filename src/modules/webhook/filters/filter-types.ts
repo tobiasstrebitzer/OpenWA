@@ -9,7 +9,7 @@
  * subscribed to several families behaves sanely without per-event filter sets.
  */
 
-export type FilterOperator = 'is' | 'isNot' | 'contains' | 'equals' | 'matches';
+export type FilterOperator = 'is' | 'isNot' | 'contains' | 'equals';
 
 /** Value shape a field resolves to, which decides how operators are applied. */
 export type FieldKind = 'id' | 'idArray' | 'text' | 'enum' | 'boolean';
@@ -18,7 +18,7 @@ export interface WebhookFilterCondition {
   field: string;
   operator: FilterOperator;
   value: string | string[] | boolean;
-  /** Only meaningful for `text` fields (`contains`/`equals`/`matches`). Defaults to false. */
+  /** Only meaningful for `text` fields (`contains`/`equals`). Defaults to false. */
   caseSensitive?: boolean;
 }
 
@@ -53,12 +53,9 @@ export const MESSAGE_TYPES = [
 export const MAX_CONDITIONS = 20;
 export const MAX_VALUES_PER_CONDITION = 100;
 export const MAX_TEXT_VALUE_LENGTH = 1000;
-export const MAX_REGEX_LENGTH = 200;
-/** Inputs longer than this are truncated before regex matching to bound backtracking cost. */
-export const MAX_REGEX_INPUT_LENGTH = 4096;
 
 const ID_OPERATORS: FilterOperator[] = ['is', 'isNot'];
-const TEXT_OPERATORS: FilterOperator[] = ['contains', 'equals', 'matches'];
+const TEXT_OPERATORS: FilterOperator[] = ['contains', 'equals'];
 const ENUM_OPERATORS: FilterOperator[] = ['is', 'isNot'];
 const BOOLEAN_OPERATORS: FilterOperator[] = ['is'];
 
@@ -140,14 +137,4 @@ export function findFieldDefinition(field: string): FieldDefinition | undefined 
     if (found) return found;
   }
   return undefined;
-}
-
-/**
- * Heuristic guard against catastrophic-backtracking patterns (e.g. `(a+)+`). It is a
- * best-effort net, not a proof of safety; the hard bound is the input-length cap applied
- * at match time plus {@link MAX_REGEX_LENGTH}. Flags a quantified group whose body itself
- * contains an unbounded quantifier.
- */
-export function isPotentiallyCatastrophicRegex(pattern: string): boolean {
-  return /\([^()]*[+*{][^()]*\)[+*]/.test(pattern) || /\([^()]*[+*{][^()]*\)\{/.test(pattern);
 }

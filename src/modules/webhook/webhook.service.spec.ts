@@ -428,12 +428,10 @@ describe('WebhookService', () => {
       expect(await deliveries(cs, 'message.received', { body: 'PING me' })).toBe(0);
     });
 
-    it('body "matches" applies the regex; an invalid regex filters out (never throws)', async () => {
-      const f = conds({ field: 'body', operator: 'matches', value: '^order\\s+\\d+' });
+    it('body "equals" fires only on an exact match', async () => {
+      const f = conds({ field: 'body', operator: 'equals', value: 'order 42' });
       expect(await deliveries(f, 'message.received', { body: 'order 42' })).toBe(1);
-      expect(await deliveries(f, 'message.received', { body: 'hello' })).toBe(0);
-      const bad = conds({ field: 'body', operator: 'matches', value: '(' });
-      await expect(deliveries(bad, 'message.received', { body: '(' })).resolves.toBe(0);
+      expect(await deliveries(f, 'message.received', { body: 'order 4242' })).toBe(0);
     });
 
     it('type "is" matches one of the listed message types', async () => {

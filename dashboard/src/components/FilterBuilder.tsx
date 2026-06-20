@@ -36,7 +36,7 @@ const MESSAGE_TYPES = [
 const MESSAGE_FIELDS: FieldDescriptor[] = [
   { field: 'sender', kind: 'id', operators: ['is', 'isNot'] },
   { field: 'recipient', kind: 'id', operators: ['is', 'isNot'] },
-  { field: 'body', kind: 'text', operators: ['contains', 'equals', 'matches'] },
+  { field: 'body', kind: 'text', operators: ['contains', 'equals'] },
   { field: 'type', kind: 'enum', operators: ['is', 'isNot'], enumValues: MESSAGE_TYPES },
   { field: 'isGroup', kind: 'boolean', operators: ['is'] },
   { field: 'fromMe', kind: 'boolean', operators: ['is'] },
@@ -243,11 +243,7 @@ export function FilterBuilder({ filters, onChange, chats }: FilterBuilderProps) 
                   <input
                     type="text"
                     value={typeof condition.value === 'string' ? condition.value : ''}
-                    placeholder={
-                      condition.operator === 'matches'
-                        ? t('webhooks.filters.regexPlaceholder')
-                        : t('webhooks.filters.textPlaceholder')
-                    }
+                    placeholder={t('webhooks.filters.textPlaceholder')}
                     onChange={e => updateAt(index, { value: e.target.value })}
                   />
                   <label className="filter-case">

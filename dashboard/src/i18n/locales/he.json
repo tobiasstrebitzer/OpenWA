@@ -277,7 +277,6 @@
       "caseSensitive": "תלוי רישיות",
       "contactPlaceholder": "מספר או מזהה WhatsApp...",
       "textPlaceholder": "טקסט להתאמה...",
-      "regexPlaceholder": "ביטוי רגולרי...",
       "addValue": "הוספת \"{{value}}\"",
       "yes": "כן",
       "no": "לא",
@@ -295,8 +294,7 @@
         "is": "הוא",
         "isNot": "אינו",
         "contains": "מכיל",
-        "equals": "שווה ל",
-        "matches": "תואם ביטוי רגולרי"
+        "equals": "שווה ל"
       }
     },
     "columns": {

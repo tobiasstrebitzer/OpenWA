@@ -61,21 +61,15 @@ describe('evaluateFilters', () => {
     ).toBe(false);
   });
 
-  it('body equals and regex matches', () => {
+  it('body equals is exact and case-insensitive by default', () => {
     expect(
       evaluateFilters(filters({ field: 'body', operator: 'equals', value: 'Hello World' }), 'message.received', msg()),
     ).toBe(true);
     expect(
-      evaluateFilters(filters({ field: 'body', operator: 'matches', value: '^hello' }), 'message.received', msg()),
+      evaluateFilters(filters({ field: 'body', operator: 'equals', value: 'hello world' }), 'message.received', msg()),
     ).toBe(true);
     expect(
-      evaluateFilters(filters({ field: 'body', operator: 'matches', value: '^world' }), 'message.received', msg()),
-    ).toBe(false);
-  });
-
-  it('rejects an invalid regex by failing the match, not throwing', () => {
-    expect(
-      evaluateFilters(filters({ field: 'body', operator: 'matches', value: '(' }), 'message.received', msg()),
+      evaluateFilters(filters({ field: 'body', operator: 'equals', value: 'Hello' }), 'message.received', msg()),
     ).toBe(false);
   });
 

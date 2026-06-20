@@ -38,7 +38,7 @@ export interface SessionStats {
   memoryUsage: { heapUsed: number; heapTotal: number; rss: number };
 }
 
-export type WebhookFilterOperator = 'is' | 'isNot' | 'contains' | 'equals' | 'matches';
+export type WebhookFilterOperator = 'is' | 'isNot' | 'contains' | 'equals';
 
 export interface WebhookFilterCondition {
   field: string;

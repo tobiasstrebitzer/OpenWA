@@ -2,8 +2,6 @@ import {
   WebhookFilters,
   WebhookFilterCondition,
   FieldDefinition,
-  MAX_REGEX_LENGTH,
-  MAX_REGEX_INPUT_LENGTH,
   eventFamily,
   getFieldDefinition,
 } from './filter-types';
@@ -27,16 +25,6 @@ const canonicalInput = (value: string): string => WaId.fromUserInput(value).toNe
 
 const toStringArray = (value: unknown): string[] =>
   Array.isArray(value) ? value.filter((v): v is string => typeof v === 'string') : [];
-
-function safeRegexTest(pattern: string, input: string, caseSensitive: boolean): boolean {
-  if (pattern.length > MAX_REGEX_LENGTH) return false;
-  const text = input.length > MAX_REGEX_INPUT_LENGTH ? input.slice(0, MAX_REGEX_INPUT_LENGTH) : input;
-  try {
-    return new RegExp(pattern, caseSensitive ? '' : 'i').test(text);
-  } catch {
-    return false;
-  }
-}
 
 function evaluateCondition(
   def: FieldDefinition,
@@ -78,7 +66,6 @@ function evaluateCondition(
       const haystack = caseSensitive ? haystackRaw : haystackRaw.toLowerCase();
       const needle = caseSensitive ? value : value.toLowerCase();
       if (operator === 'equals') return haystack === needle;
-      if (operator === 'matches') return safeRegexTest(value, haystackRaw, caseSensitive);
       return haystack.includes(needle); // contains
     }
 

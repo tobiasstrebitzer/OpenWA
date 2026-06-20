@@ -8,14 +8,12 @@ import {
 import {
   FilterOperator,
   findFieldDefinition,
-  isPotentiallyCatastrophicRegex,
   MAX_CONDITIONS,
-  MAX_REGEX_LENGTH,
   MAX_TEXT_VALUE_LENGTH,
   MAX_VALUES_PER_CONDITION,
 } from './filter-types';
 
-const OPERATORS: FilterOperator[] = ['is', 'isNot', 'contains', 'equals', 'matches'];
+const OPERATORS: FilterOperator[] = ['is', 'isNot', 'contains', 'equals'];
 
 function validateCondition(condition: unknown, index: number): string | null {
   const where = `conditions[${index}]`;
@@ -43,17 +41,7 @@ function validateCondition(condition: unknown, index: number): string | null {
 
     case 'text': {
       if (typeof value !== 'string') return `${where}.value must be a string for "${field}"`;
-      if (operator === 'matches') {
-        if (value.length > MAX_REGEX_LENGTH) return `${where}.value regex exceeds ${MAX_REGEX_LENGTH} chars`;
-        if (isPotentiallyCatastrophicRegex(value)) return `${where}.value regex is rejected as potentially unsafe`;
-        try {
-          new RegExp(value);
-        } catch {
-          return `${where}.value is not a valid regular expression`;
-        }
-      } else if (value.length > MAX_TEXT_VALUE_LENGTH) {
-        return `${where}.value exceeds ${MAX_TEXT_VALUE_LENGTH} chars`;
-      }
+      if (value.length > MAX_TEXT_VALUE_LENGTH) return `${where}.value exceeds ${MAX_TEXT_VALUE_LENGTH} chars`;
       return null;
     }
 

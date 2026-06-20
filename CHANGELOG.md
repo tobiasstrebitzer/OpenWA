@@ -12,7 +12,7 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 - **Smart webhook filters (optional, additive).** A webhook trigger can now carry an optional set of
   pre-dispatch conditions, evaluated per event before delivery: it fires only when **all** conditions
   match (AND). Conditions match on `sender` / `recipient` / `body` / `type` / `mentions` / `fromMe` /
-  `hasMedia` / `isGroup` with `is` / `isNot` / `contains` / `equals` / `matches` (regex) operators;
+  `hasMedia` / `isGroup` with `is` / `isNot` / `contains` / `equals` operators;
   message-only conditions are skipped for non-message events, so a `*`-subscribed webhook still fires on
   session events. A webhook with no filters behaves exactly as before. Contact-id conditions
   (`sender`/`recipient`/`mentions`) match by the engine-neutral `WaId` key, so a filter written as a

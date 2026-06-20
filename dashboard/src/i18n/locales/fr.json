@@ -277,7 +277,6 @@
       "caseSensitive": "Sensible à la casse",
       "contactPlaceholder": "Numéro ou identifiant WhatsApp...",
       "textPlaceholder": "Texte à rechercher...",
-      "regexPlaceholder": "Expression régulière...",
       "addValue": "Ajouter « {{value}} »",
       "yes": "Oui",
       "no": "Non",
@@ -295,8 +294,7 @@
         "is": "est",
         "isNot": "n'est pas",
         "contains": "contient",
-        "equals": "est égal à",
-        "matches": "correspond à la regex"
+        "equals": "est égal à"
       }
     },
     "columns": {

@@ -277,7 +277,6 @@
       "caseSensitive": "區分大小寫",
       "contactPlaceholder": "號碼或 WhatsApp ID...",
       "textPlaceholder": "要符合的文字...",
-      "regexPlaceholder": "正規表達式...",
       "addValue": "新增 \"{{value}}\"",
       "yes": "是",
       "no": "否",
@@ -295,8 +294,7 @@
         "is": "是",
         "isNot": "不是",
         "contains": "包含",
-        "equals": "等於",
-        "matches": "符合正規表達式"
+        "equals": "等於"
       }
     },
     "columns": {

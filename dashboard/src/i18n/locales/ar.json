@@ -277,7 +277,6 @@
       "caseSensitive": "حساس لحالة الأحرف",
       "contactPlaceholder": "رقم أو معرّف واتساب...",
       "textPlaceholder": "نص للمطابقة...",
-      "regexPlaceholder": "تعبير نمطي...",
       "addValue": "إضافة \"{{value}}\"",
       "yes": "نعم",
       "no": "لا",
@@ -295,8 +294,7 @@
         "is": "هو",
         "isNot": "ليس",
         "contains": "يحتوي على",
-        "equals": "يساوي",
-        "matches": "يطابق التعبير النمطي"
+        "equals": "يساوي"
       }
     },
     "columns": {
