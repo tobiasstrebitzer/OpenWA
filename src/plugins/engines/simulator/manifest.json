@@ -1,0 +1,9 @@
+{
+  "id": "simulator",
+  "name": "Simulator Engine",
+  "version": "1.0.0",
+  "type": "engine",
+  "description": "In-memory WhatsApp world for end-to-end tests (no real connection)",
+  "main": "index.ts",
+  "provides": ["whatsapp-engine"]
+}

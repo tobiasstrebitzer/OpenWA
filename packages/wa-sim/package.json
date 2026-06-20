@@ -1,0 +1,18 @@
+{
+  "name": "@openwa/wa-sim",
+  "version": "0.0.1",
+  "description": "Engine-agnostic WhatsApp world simulator for OpenWA end-to-end tests.",
+  "main": "dist/index.js",
+  "types": "dist/index.d.ts",
+  "files": [
+    "dist",
+    "fixtures"
+  ],
+  "scripts": {
+    "build": "tsc -p tsconfig.json",
+    "dev": "tsc -w -p tsconfig.json",
+    "prepare": "tsc -p tsconfig.json"
+  },
+  "license": "MIT",
+  "private": true
+}

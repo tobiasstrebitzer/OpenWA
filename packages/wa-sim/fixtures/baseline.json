@@ -1,0 +1,88 @@
+{
+  "name": "baseline",
+  "description": "Small deterministic world: the account, two 1:1 contacts, one group, and seeded history.",
+  "me": { "phone": "14155550100", "pushName": "OpenWA Test" },
+  "events": [
+    {
+      "kind": "contact",
+      "t": 1700000000000,
+      "contact": { "id": "14155550101@c.us", "phone": "14155550101", "name": "Alice Anderson", "pushName": "Alice", "isMyContact": true, "isBlocked": false }
+    },
+    {
+      "kind": "contact",
+      "t": 1700000000000,
+      "contact": { "id": "14155550102@c.us", "phone": "14155550102", "name": "Bob Baker", "pushName": "Bob", "isMyContact": true, "isBlocked": false }
+    },
+    {
+      "kind": "contact",
+      "t": 1700000000000,
+      "contact": { "id": "14155550103@c.us", "phone": "14155550103", "pushName": "Carol", "isMyContact": false, "isBlocked": false }
+    },
+    {
+      "kind": "group",
+      "t": 1700000060000,
+      "group": {
+        "id": "120363000000000001@g.us",
+        "name": "Project Falcon",
+        "description": "Launch coordination",
+        "owner": "14155550100@c.us",
+        "createdAt": 1700000060000,
+        "participants": [
+          { "id": "14155550100@c.us", "phone": "14155550100", "name": "OpenWA Test", "isAdmin": true, "isSuperAdmin": true },
+          { "id": "14155550101@c.us", "phone": "14155550101", "name": "Alice Anderson", "isAdmin": false, "isSuperAdmin": false },
+          { "id": "14155550102@c.us", "phone": "14155550102", "name": "Bob Baker", "isAdmin": false, "isSuperAdmin": false }
+        ]
+      }
+    },
+    {
+      "kind": "message",
+      "t": 1700000120000,
+      "message": {
+        "id": "MSG_0001",
+        "chatId": "14155550101@c.us",
+        "from": "14155550101@c.us",
+        "to": "14155550100@c.us",
+        "body": "Hey, are we still on for tomorrow?",
+        "type": "text",
+        "timestamp": 1700000120000,
+        "fromMe": false,
+        "isGroup": false,
+        "reactions": []
+      }
+    },
+    {
+      "kind": "message",
+      "t": 1700000180000,
+      "message": {
+        "id": "MSG_0002",
+        "chatId": "14155550101@c.us",
+        "from": "14155550100@c.us",
+        "to": "14155550101@c.us",
+        "body": "Yes, 3pm works for me.",
+        "type": "text",
+        "timestamp": 1700000180000,
+        "fromMe": true,
+        "isGroup": false,
+        "ackStatus": "read",
+        "reactions": []
+      }
+    },
+    {
+      "kind": "message",
+      "t": 1700000240000,
+      "message": {
+        "id": "MSG_0003",
+        "chatId": "120363000000000001@g.us",
+        "from": "120363000000000001@g.us",
+        "to": "120363000000000001@g.us",
+        "author": "14155550102@c.us",
+        "body": "Pushed the latest build to staging.",
+        "type": "text",
+        "timestamp": 1700000240000,
+        "fromMe": false,
+        "isGroup": true,
+        "reactions": [{ "emoji": "👍", "senderId": "14155550101@c.us", "timestamp": 1700000300000 }]
+      }
+    }
+  ]
+}

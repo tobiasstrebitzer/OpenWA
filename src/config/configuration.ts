@@ -75,6 +75,11 @@ export default () => ({
     baileys: {
       authDir: process.env.BAILEYS_AUTH_DIR || './data/baileys',
     },
+    // Simulator engine (used when ENGINE_TYPE=simulator). Scenario is a fixture name shipped with
+    // @openwa/wa-sim (e.g. "baseline") or an absolute/relative path to a scenario .json file.
+    simulator: {
+      scenario: process.env.SIMULATOR_SCENARIO || 'baseline',
+    },
   },
 
   // Webhook configuration

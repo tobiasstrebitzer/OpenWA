@@ -5,8 +5,12 @@
   "author": "Yudhi Armyndharis & OpenWA Contributors",
   "private": true,
   "license": "MIT",
+  "workspaces": [
+    "packages/*"
+  ],
   "scripts": {
-    "build": "nest build",
+    "build:wa-sim": "npm -w @openwa/wa-sim run build",
+    "build": "npm run build:wa-sim && nest build",
     "build:all": "nest build && npm run dashboard:build",
     "format": "prettier --write \"src/**/*.ts\" \"test/**/*.ts\"",
     "start": "nest start",

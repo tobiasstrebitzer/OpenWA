@@ -72,6 +72,24 @@ export class EngineFactory implements OnModuleInit {
       engineConfig,
     );
 
+    // Register the simulator engine only when selected. Gated + lazy-required so its dev-only
+    // dependency (@openwa/wa-sim) is never loaded in a normal production boot.
+    if (this.engineType === 'simulator') {
+      const simulatorManifest: PluginManifest = {
+        id: 'simulator',
+        name: 'Simulator Engine',
+        version: '1.0.0',
+        type: PluginType.ENGINE,
+        description: 'In-memory WhatsApp world for end-to-end tests (no real connection)',
+        main: 'index.ts',
+        provides: ['whatsapp-engine'],
+      };
+
+      // eslint-disable-next-line @typescript-eslint/no-require-imports
+      const mod = require('../plugins/engines/simulator') as typeof import('../plugins/engines/simulator');
+      this.pluginLoader.registerBuiltInPlugin(simulatorManifest, new mod.SimulatorPlugin(engineConfig), engineConfig);
+    }
+
     // Auto-enable the configured engine
     try {
       await this.pluginLoader.enablePlugin(this.engineType);
