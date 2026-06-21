@@ -13,6 +13,7 @@ import {
   X,
   CornerUpLeft,
   Trash2,
+  RefreshCw,
 } from 'lucide-react';
 import {
   sessionApi,
@@ -95,7 +96,7 @@ export function Chats() {
   const { t } = useTranslation();
   useDocumentTitle(t('nav.chats'));
   const { canWrite } = useRole();
-  const { error: showErrorToast, warning: showWarningToast } = useToast();
+  const { success: showSuccessToast, error: showErrorToast, warning: showWarningToast } = useToast();
 
   // Sessions list & active session
   const [sessions, setSessions] = useState<Session[]>([]);
@@ -111,6 +112,7 @@ export function Chats() {
   const [activeChat, setActiveChat] = useState<Chat | null>(null);
   const [messages, setMessages] = useState<ChatMessageView[]>([]);
   const [loadingMessages, setLoadingMessages] = useState<boolean>(false);
+  const [syncingHistory, setSyncingHistory] = useState<boolean>(false);
   const [messageInput, setMessageInput] = useState<string>('');
   const [sending, setSending] = useState<boolean>(false);
 
@@ -344,6 +346,22 @@ export function Chats() {
     },
     [selectedSessionId, markChatRead, t, showErrorToast],
   );
+
+  // Pull older history from the engine into stored history, then reload the panel. The DB-backed view
+  // only holds live messages since connect; this backfills conversations that predate it.
+  const handleSyncHistory = useCallback(async () => {
+    if (!selectedSessionId || !activeChat) return;
+    try {
+      setSyncingHistory(true);
+      const result = await sessionApi.syncChatHistory(selectedSessionId, activeChat.id);
+      await loadMessages(activeChat.id);
+      showSuccessToast(t('chats.sync.done', { count: result.inserted }));
+    } catch (err) {
+      showErrorToast(t('chats.errors.sync'), err instanceof Error ? err.message : undefined);
+    } finally {
+      setSyncingHistory(false);
+    }
+  }, [selectedSessionId, activeChat, loadMessages, t, showSuccessToast, showErrorToast]);
 
   const handleReactMessage = async (msg: ChatMessageView, emoji: string) => {
     if (!selectedSessionId || !activeChat) return;
@@ -737,6 +755,17 @@ export function Chats() {
                     <h3>{activeChat.name || activeChat.id.split('@')[0]}</h3>
                     <span>{activeChat.id}</span>
                   </div>
+                  {canWrite && (
+                    <button
+                      className="btn-icon room-sync-btn"
+                      onClick={handleSyncHistory}
+                      disabled={syncingHistory}
+                      title={t('chats.sync.tooltip')}
+                      aria-label={t('chats.sync.tooltip')}
+                    >
+                      {syncingHistory ? <Loader2 className="animate-spin" size={18} /> : <RefreshCw size={18} />}
+                    </button>
+                  )}
                 </header>
 
                 {/* Messages body */}

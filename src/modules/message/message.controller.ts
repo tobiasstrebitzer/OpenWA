@@ -2,6 +2,8 @@ import { Controller, Post, Get, Param, Body, Query, HttpCode, HttpStatus } from 
 import { ApiTags, ApiOperation, ApiResponse, ApiParam, ApiQuery } from '@nestjs/swagger';
 import { MessageService } from './message.service';
 import { BulkMessageService } from './bulk-message.service';
+import { HistorySyncService } from './history-sync.service';
+import { SyncChatHistoryDto } from './dto/sync-history.dto';
 import { SendTextMessageDto, SendMediaMessageDto, MessageResponseDto } from './dto';
 import { SendTemplateMessageDto } from './dto/send-template.dto';
 import { SendBulkMessageDto, BulkMessageResponseDto } from './dto/bulk-message.dto';
@@ -22,6 +24,7 @@ export class MessageController {
   constructor(
     private readonly messageService: MessageService,
     private readonly bulkMessageService: BulkMessageService,
+    private readonly historySyncService: HistorySyncService,
   ) {}
 
   @Get()
@@ -52,6 +55,28 @@ export class MessageController {
       limit: limit ? parseInt(limit, 10) : undefined,
       offset: offset ? parseInt(offset, 10) : undefined,
     });
+  }
+
+  @Post('sync')
+  @RequireRole(ApiKeyRole.OPERATOR)
+  @ApiOperation({ summary: "Sync a chat's history from the engine into stored message history" })
+  @ApiParam({ name: 'sessionId', description: 'Session ID' })
+  @HttpCode(HttpStatus.OK)
+  @ApiResponse({ status: 200, description: 'Counts of fetched/inserted/skipped messages' })
+  async syncChatHistory(@Param('sessionId') sessionId: string, @Body() dto: SyncChatHistoryDto) {
+    return this.historySyncService.syncChat(sessionId, dto.chatId, dto.limit);
+  }
+
+  @Post('sync-all')
+  @RequireRole(ApiKeyRole.OPERATOR)
+  @ApiOperation({
+    summary: 'Sync history for every chat in the session (throttled, runs in the background)',
+  })
+  @ApiParam({ name: 'sessionId', description: 'Session ID' })
+  @HttpCode(HttpStatus.ACCEPTED)
+  @ApiResponse({ status: 202, description: 'Sweep started; number of chats queued' })
+  async syncSessionHistory(@Param('sessionId') sessionId: string) {
+    return this.historySyncService.syncSession(sessionId);
   }
 
   @Post('send-text')

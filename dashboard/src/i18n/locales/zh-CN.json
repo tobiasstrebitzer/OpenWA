@@ -109,7 +109,12 @@
       "markRead": "将聊天标记为已读失败",
       "send": "发送消息失败",
       "react": "回应消息失败",
-      "delete": "删除消息失败"
+      "delete": "删除消息失败",
+      "sync": "同步历史记录失败"
+    },
+    "sync": {
+      "tooltip": "同步较早的消息",
+      "done": "已将 {{count}} 条消息同步到历史记录"
     }
   },
   "errorBoundary": {

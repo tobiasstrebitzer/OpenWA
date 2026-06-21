@@ -109,7 +109,12 @@
       "markRead": "將聊天標記為已讀失敗",
       "send": "傳送訊息失敗",
       "react": "回應訊息失敗",
-      "delete": "刪除訊息失敗"
+      "delete": "刪除訊息失敗",
+      "sync": "同步歷史記錄失敗"
+    },
+    "sync": {
+      "tooltip": "同步較舊的訊息",
+      "done": "已將 {{count}} 則訊息同步到歷史記錄"
     }
   },
   "errorBoundary": {

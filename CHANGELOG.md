@@ -7,7 +7,18 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ## [Unreleased]
 
-## [0.4.6] - 2026-06-20
+### Added
+
+- **On-demand chat history backfill.** No engine persists pre-connection history (Baileys' history
+  sync and `append` events are not stored, wwebjs/simulator only emit live), so the DB-backed chat
+  panel was empty for conversations that predate the live session and only filled going forward. A new
+  `HistorySyncService` pulls history from the engine into the `messages` table on demand, de-duplicated
+  by `(sessionId, waMessageId)` so repeat syncs never duplicate, and stamps each row's `createdAt` with
+  the message's real time so backfilled history interleaves chronologically instead of clumping at
+  "now". Exposed as `POST /api/sessions/:sessionId/messages/sync` (one chat) and
+  `POST /api/sessions/:sessionId/messages/sync-all` (throttled, sequential background sweep of every
+  chat, bounded and guarded against overlapping runs to respect engine rate limits). The dashboard chat
+  header gains a resync button. A scheduled/automatic sweep is intentionally deferred to a follow-up.
 
 A reliability, correctness, and dashboard release. **Identity & engine:** Baileys gains a persistent,
 cross-session `lid -> phone` table (shared resolution that survives restarts) plus a new `from` message

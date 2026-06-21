@@ -282,6 +282,11 @@
   box-sizing: border-box;
 }
 
+.room-sync-btn {
+  margin-left: auto;
+  flex-shrink: 0;
+}
+
 .room-avatar {
   width: 40px;
   height: 40px;

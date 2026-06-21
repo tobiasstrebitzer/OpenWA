@@ -332,6 +332,13 @@ export const sessionApi = {
     request<{ messages: ChatMessage[]; total: number }>(
       `/sessions/${id}/messages?chatId=${encodeURIComponent(chatId)}&limit=${limit}`,
     ),
+  // Pull chat history from the engine into stored history (idempotent). The DB-backed chat view only
+  // holds live messages since connect; this backfills older conversations on demand.
+  syncChatHistory: (id: string, chatId: string) =>
+    request<{ chatId: string; fetched: number; inserted: number; skipped: number }>(
+      `/sessions/${id}/messages/sync`,
+      { method: 'POST', body: JSON.stringify({ chatId }) },
+    ),
 };
 
 // =============================================================================

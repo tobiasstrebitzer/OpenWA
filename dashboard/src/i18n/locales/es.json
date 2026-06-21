@@ -109,7 +109,12 @@
       "markRead": "Error al marcar el chat como leído",
       "send": "Error al enviar el mensaje",
       "react": "Error al reaccionar al mensaje",
-      "delete": "Error al eliminar el mensaje"
+      "delete": "Error al eliminar el mensaje",
+      "sync": "Error al sincronizar el historial"
+    },
+    "sync": {
+      "tooltip": "Sincronizar mensajes anteriores",
+      "done": "Se sincronizaron {{count}} mensaje(s) en el historial"
     }
   },
   "errorBoundary": {

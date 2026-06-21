@@ -109,7 +109,12 @@
       "markRead": "Impossibile contrassegnare la chat come letta",
       "send": "Impossibile inviare il messaggio",
       "react": "Impossibile reagire al messaggio",
-      "delete": "Impossibile eliminare il messaggio"
+      "delete": "Impossibile eliminare il messaggio",
+      "sync": "Sincronizzazione della cronologia non riuscita"
+    },
+    "sync": {
+      "tooltip": "Sincronizza i messaggi precedenti",
+      "done": "Sincronizzati {{count}} messaggio/i nella cronologia"
     }
   },
   "errorBoundary": {

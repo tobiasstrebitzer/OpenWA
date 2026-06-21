@@ -109,7 +109,12 @@
       "markRead": "Failed to mark chat as read",
       "send": "Failed to send message",
       "react": "Failed to react to message",
-      "delete": "Failed to delete message"
+      "delete": "Failed to delete message",
+      "sync": "Failed to sync history"
+    },
+    "sync": {
+      "tooltip": "Sync older messages",
+      "done": "Synced {{count}} message(s) into history"
     }
   },
   "errorBoundary": {
