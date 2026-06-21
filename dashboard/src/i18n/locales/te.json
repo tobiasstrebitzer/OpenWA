@@ -1,4 +1,10 @@
 {
+  "toast": {
+    "connectionLost": {
+      "title": "సర్వర్ కనెక్షన్ తెగిపోయింది",
+      "message": "బ్యాకెండ్ సర్వర్‌ను చేరుకోలేకపోయాం. సర్వర్ నడుస్తుందో లేదో తనిఖీ చేయండి."
+    }
+  },
   "common": {
     "appName": "OpenWA",
     "appSubtitle": "WhatsApp API",
@@ -53,7 +59,10 @@
     "light": "లైట్",
     "dark": "డార్క్",
     "system": "సిస్టమ్",
-    "label": "థీమ్: {{value}}"
+    "label": "థీమ్: {{value}}",
+    "appearance": "రూపం",
+    "mode": "మోడ్",
+    "palette": "రంగుల పలక"
   },
   "nav": {
     "dashboard": "డ్యాష్‌బోర్డ్",

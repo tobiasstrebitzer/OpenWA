@@ -1,4 +1,10 @@
 {
+  "toast": {
+    "connectionLost": {
+      "title": "伺服器連線已中斷",
+      "message": "無法連接到後端伺服器。請檢查伺服器是否正在執行。"
+    }
+  },
   "common": {
     "appName": "OpenWA",
     "appSubtitle": "WhatsApp API",
@@ -53,7 +59,10 @@
     "light": "淺色",
     "dark": "深色",
     "system": "跟隨系統",
-    "label": "主題：{{value}}"
+    "label": "主題：{{value}}",
+    "appearance": "外觀",
+    "mode": "模式",
+    "palette": "調色板"
   },
   "nav": {
     "dashboard": "控制面板",

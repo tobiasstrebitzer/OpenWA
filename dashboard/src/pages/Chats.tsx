@@ -95,7 +95,7 @@ export function Chats() {
   const { t } = useTranslation();
   useDocumentTitle(t('nav.chats'));
   const { canWrite } = useRole();
-  const toast = useToast();
+  const { error: showErrorToast, warning: showWarningToast } = useToast();
 
   // Sessions list & active session
   const [sessions, setSessions] = useState<Session[]>([]);
@@ -144,13 +144,13 @@ export function Chats() {
           setSelectedSessionId(readySessions[0].id);
         }
       } catch (err) {
-        toast.error(t('chats.errors.loadSessions'), err instanceof Error ? err.message : undefined);
+        showErrorToast(t('chats.errors.loadSessions'), err instanceof Error ? err.message : undefined);
       } finally {
         setLoadingSessions(false);
       }
     };
     void loadSessions();
-  }, [t, toast]);
+  }, [t, showErrorToast]);
 
   // 2. Fetch chats when active session changes
   const loadChats = useCallback(
@@ -162,13 +162,13 @@ export function Chats() {
         const sorted = [...data].sort((a, b) => (b.timestamp || 0) - (a.timestamp || 0));
         setChats(sorted);
       } catch (err) {
-        toast.error(t('chats.errors.loadChats'), err instanceof Error ? err.message : undefined);
+        showErrorToast(t('chats.errors.loadChats'), err instanceof Error ? err.message : undefined);
         setChats([]);
       } finally {
         setLoadingChats(false);
       }
     },
-    [t, toast],
+    [t, showErrorToast],
   );
 
   useEffect(() => {
@@ -184,10 +184,10 @@ export function Chats() {
   const markChatRead = useCallback(
     (chatId: string) => {
       void sessionApi.markChatRead(selectedSessionId, chatId).catch(err => {
-        toast.warning(t('chats.errors.markRead'), err instanceof Error ? err.message : undefined);
+        showWarningToast(t('chats.errors.markRead'), err instanceof Error ? err.message : undefined);
       });
     },
-    [selectedSessionId, t, toast],
+    [selectedSessionId, t, showWarningToast],
   );
 
   // 3. WebSocket integration for real-time messages
@@ -336,13 +336,13 @@ export function Chats() {
         const data = await sessionApi.getChatMessages(selectedSessionId, chatId, 100);
         setMessages([...data.messages].reverse());
       } catch (err) {
-        toast.error(t('chats.errors.loadMessages'), err instanceof Error ? err.message : undefined);
+        showErrorToast(t('chats.errors.loadMessages'), err instanceof Error ? err.message : undefined);
         setMessages([]);
       } finally {
         setLoadingMessages(false);
       }
     },
-    [selectedSessionId, markChatRead, t, toast],
+    [selectedSessionId, markChatRead, t, showErrorToast],
   );
 
   const handleReactMessage = async (msg: ChatMessageView, emoji: string) => {
@@ -385,7 +385,7 @@ export function Chats() {
         }),
       );
     } catch (err) {
-      toast.error(t('chats.errors.react'), err instanceof Error ? err.message : undefined);
+      showErrorToast(t('chats.errors.react'), err instanceof Error ? err.message : undefined);
     }
   };
 
@@ -411,7 +411,7 @@ export function Chats() {
         }),
       );
     } catch (err) {
-      toast.error(t('chats.errors.delete'), err instanceof Error ? err.message : undefined);
+      showErrorToast(t('chats.errors.delete'), err instanceof Error ? err.message : undefined);
     }
   };
 
@@ -572,7 +572,7 @@ export function Chats() {
         return updatedChats;
       });
     } catch (err) {
-      toast.error(t('chats.errors.send'), err instanceof Error ? err.message : undefined);
+      showErrorToast(t('chats.errors.send'), err instanceof Error ? err.message : undefined);
       setMessages(prev => prev.map(m => (m.id === tempId ? { ...m, status: 'failed' } : m)));
     } finally {
       setSending(false);
