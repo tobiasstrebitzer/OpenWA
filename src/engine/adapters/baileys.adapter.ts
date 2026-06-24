@@ -260,6 +260,7 @@ export class BaileysAdapter implements IWhatsAppEngine {
       const h = history as unknown as { lidPnMappings?: { lid: string; pn: string }[]; syncType?: unknown };
       const lidPnMappings = h.lidPnMappings;
       this.sessionStore.addLidMappings(lidPnMappings ?? []);
+      this.captureHistoryMessages(history.messages ?? []);
       this.logger.debug('History sync received', {
         action: 'baileys_history_set',
         sessionId: this.config.sessionId,
@@ -1106,6 +1107,83 @@ export class BaileysAdapter implements IWhatsAppEngine {
         media,
         location,
         quotedMessage,
+      },
+      jid => this.sessionStore.toNeutralJid(jid),
+    );
+  }
+
+  /**
+   * Persist the bulk history Baileys pushes on connect (`messaging-history.set`) - the only
+   * pre-connection history source. Maps each message media-free and hands the batch to the dispatch-free
+   * `onHistoryMessages` callback, harvesting `pushName` into contacts on the way (history `contacts`
+   * carry no names) and seeding each chat's last-message preview.
+   */
+  private captureHistoryMessages(messages: WAMessage[]): void {
+    if (!messages.length) {
+      return;
+    }
+    const nameUpdates: { id: string; notify: string }[] = [];
+    const mapped: IncomingMessage[] = [];
+    for (const msg of messages) {
+      if (msg.key?.fromMe !== true && msg.pushName) {
+        const sender = msg.key?.participant ?? msg.key?.remoteJid;
+        if (sender) {
+          nameUpdates.push({ id: sender, notify: msg.pushName });
+        }
+      }
+      // Seed the chat's last-message preview + sort time (newest wins); else history-only chats
+      // would read "No messages yet".
+      this.sessionStore.recordMessage(msg);
+      const incoming = this.mapHistoryMessage(msg);
+      if (incoming) {
+        mapped.push(incoming);
+      }
+    }
+    if (nameUpdates.length) {
+      this.sessionStore.upsertContacts(nameUpdates);
+    }
+    if (mapped.length) {
+      this.callbacks.onHistoryMessages?.(mapped);
+    }
+  }
+
+  /**
+   * Media-free WAMessage -> IncomingMessage map for bulk history (downloading media for thousands of
+   * messages would be ruinous; the type is kept, the payload dropped). Returns null for protocol /
+   * reaction / key / empty messages, which carry nothing for the chat view.
+   */
+  private mapHistoryMessage(msg: WAMessage): IncomingMessage | null {
+    const content = msg.message;
+    if (!content || !msg.key?.remoteJid || !msg.key.id) {
+      return null;
+    }
+    const contentType = Object.keys(content)[0];
+    if (
+      contentType === 'protocolMessage' ||
+      contentType === 'reactionMessage' ||
+      contentType === 'senderKeyDistributionMessage'
+    ) {
+      return null;
+    }
+    const body =
+      content.conversation ??
+      content.extendedTextMessage?.text ??
+      content.imageMessage?.caption ??
+      content.videoMessage?.caption ??
+      content.documentMessage?.caption ??
+      '';
+    return buildIncomingMessageFromBaileys(
+      {
+        id: msg.key.id,
+        remoteJid: msg.key.remoteJid,
+        fromMe: msg.key.fromMe === true,
+        participant: msg.key.participant ?? undefined,
+        body,
+        contentType,
+        isPtt: content.audioMessage?.ptt === true,
+        timestamp: this.toUnixSeconds(msg.messageTimestamp),
+        pushName: msg.pushName ?? undefined,
+        selfJid: this.normalizedSelfJid(),
       },
       jid => this.sessionStore.toNeutralJid(jid),
     );
