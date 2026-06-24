@@ -304,6 +304,8 @@ export class BaileysAdapter implements IWhatsAppEngine {
       this.reconnectAttempts = 0;
       this.setStatus(EngineStatus.READY);
       this.callbacks.onReady?.(this.phoneNumber ?? '', this.pushName ?? '');
+      // Backfill names the initial sync skipped (see hydrateNames).
+      void this.hydrateNames();
     }
 
     if (connection === 'close') {
@@ -1144,6 +1146,36 @@ export class BaileysAdapter implements IWhatsAppEngine {
     }
     if (mapped.length) {
       this.callbacks.onHistoryMessages?.(mapped);
+    }
+  }
+
+  /**
+   * Backfill chat/contact display names after connect. Baileys 6.7.x often skips the initial app-state
+   * sync (the state machine goes Online before it runs) and the PUSH_NAME sync can fail to decrypt, so
+   * names never arrive. Fetch group subjects (reliable) and best-effort re-trigger the app-state sync;
+   * both are non-fatal, and DM push-names still arrive via `contacts.update` on live messages.
+   */
+  private async hydrateNames(): Promise<void> {
+    try {
+      const groups = await this.sock!.groupFetchAllParticipating();
+      const named = Object.values(groups)
+        .filter(g => g?.id && g.subject)
+        .map(g => ({ id: g.id, name: g.subject }));
+      if (named.length) {
+        this.sessionStore.upsertChats(named);
+        this.logger.debug('Hydrated group names', { action: 'baileys_hydrate_groups', count: named.length });
+      }
+    } catch (err) {
+      this.logger.warn('Group name hydration failed', { error: err instanceof Error ? err.message : String(err) });
+    }
+    try {
+      const b = await this.loadLib();
+      await this.sock!.resyncAppState(b.ALL_WA_PATCH_NAMES, false);
+      this.logger.debug('Re-synced app state for contact names', { action: 'baileys_resync_appstate' });
+    } catch (err) {
+      this.logger.warn('App-state resync for contact names failed', {
+        error: err instanceof Error ? err.message : String(err),
+      });
     }
   }
 
