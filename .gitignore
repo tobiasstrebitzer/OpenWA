@@ -77,3 +77,5 @@ docs/plans/
 CLAUDE.md
 _docs/
 .superpowers/
+# Local Claude Code MCP client config (contains a dev API key)
+.mcp.json

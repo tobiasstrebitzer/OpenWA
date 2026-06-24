@@ -5,6 +5,7 @@ import { SendTextStatusDto } from './dto/send-text-status.dto';
 import { SendImageStatusDto, SendVideoStatusDto } from './dto/send-media-status.dto';
 import { RequireRole } from '../auth/decorators/auth.decorators';
 import { ApiKeyRole } from '../auth/entities/api-key.entity';
+import { Mcp } from '../mcp/mcp.decorator';
 
 @ApiTags('Status')
 @Controller('sessions/:sessionId/status')
@@ -13,12 +14,14 @@ export class StatusController {
 
   @Get()
   @ApiOperation({ summary: 'Get all contact status updates' })
+  @Mcp()
   async getStatuses(@Param('sessionId') sessionId: string) {
     return { statuses: await this.statusService.getStatuses(sessionId) };
   }
 
   @Get(':contactId')
   @ApiOperation({ summary: 'Get status updates from a specific contact' })
+  @Mcp()
   async getContactStatus(@Param('sessionId') sessionId: string, @Param('contactId') contactId: string) {
     return { statuses: await this.statusService.getContactStatus(sessionId, contactId) };
   }
@@ -26,6 +29,7 @@ export class StatusController {
   @Post('send-text')
   @RequireRole(ApiKeyRole.OPERATOR)
   @ApiOperation({ summary: 'Post a text status' })
+  @Mcp()
   async sendTextStatus(@Param('sessionId') sessionId: string, @Body() dto: SendTextStatusDto) {
     return this.statusService.postTextStatus(sessionId, dto.text, {
       backgroundColor: dto.backgroundColor,
@@ -36,6 +40,7 @@ export class StatusController {
   @Post('send-image')
   @RequireRole(ApiKeyRole.OPERATOR)
   @ApiOperation({ summary: 'Post an image status' })
+  @Mcp()
   async sendImageStatus(@Param('sessionId') sessionId: string, @Body() dto: SendImageStatusDto) {
     return this.statusService.postImageStatus(sessionId, dto.image, dto.caption);
   }
@@ -43,6 +48,7 @@ export class StatusController {
   @Post('send-video')
   @RequireRole(ApiKeyRole.OPERATOR)
   @ApiOperation({ summary: 'Post a video status' })
+  @Mcp()
   async sendVideoStatus(@Param('sessionId') sessionId: string, @Body() dto: SendVideoStatusDto) {
     return this.statusService.postVideoStatus(sessionId, dto.video, dto.caption);
   }
@@ -50,6 +56,7 @@ export class StatusController {
   @Delete(':statusId')
   @RequireRole(ApiKeyRole.OPERATOR)
   @ApiOperation({ summary: 'Delete own status' })
+  @Mcp()
   async deleteStatus(@Param('sessionId') sessionId: string, @Param('statusId') statusId: string) {
     await this.statusService.deleteStatus(sessionId, statusId);
     return { message: 'Status deleted successfully' };

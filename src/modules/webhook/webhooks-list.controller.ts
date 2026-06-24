@@ -4,6 +4,7 @@ import { WebhookService } from './webhook.service';
 import { WebhookResponseDto } from './dto';
 import { RequireRole, CurrentApiKey } from '../auth/decorators/auth.decorators';
 import { ApiKey, ApiKeyRole } from '../auth/entities/api-key.entity';
+import { Mcp } from '../mcp/mcp.decorator';
 
 @ApiTags('webhooks')
 @Controller('webhooks')
@@ -18,6 +19,7 @@ export class WebhooksListController {
     description: 'List of webhooks',
     type: [WebhookResponseDto],
   })
+  @Mcp()
   async findAll(@CurrentApiKey() apiKey?: ApiKey): Promise<WebhookResponseDto[]> {
     // Scope to the key's allowedSessions so a session-restricted key cannot enumerate every
     // session's webhook URLs. A null/empty allowlist (e.g. ADMIN) still sees all.

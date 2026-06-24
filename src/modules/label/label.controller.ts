@@ -4,6 +4,7 @@ import { LabelService } from './label.service';
 import { AddLabelDto } from './dto/add-label.dto';
 import { RequireRole } from '../auth/decorators/auth.decorators';
 import { ApiKeyRole } from '../auth/entities/api-key.entity';
+import { Mcp } from '../mcp/mcp.decorator';
 
 @ApiTags('labels')
 @Controller('sessions/:sessionId/labels')
@@ -12,38 +13,41 @@ export class LabelController {
 
   @Get()
   @ApiOperation({ summary: 'Get all labels (WhatsApp Business only)' })
-  @ApiParam({ name: 'sessionId', description: 'Session ID' })
+  @ApiParam({ name: 'sessionId', description: 'Session UUID (the session id, not the name)' })
   @ApiResponse({
     status: 200,
     description: 'List of labels',
   })
   @ApiResponse({ status: 400, description: 'Session not ready or not a business account' })
   @ApiResponse({ status: 404, description: 'Session not found' })
+  @Mcp()
   async findAll(@Param('sessionId') sessionId: string) {
     return this.labelService.getLabels(sessionId);
   }
 
   @Get(':labelId')
   @ApiOperation({ summary: 'Get a specific label by ID' })
-  @ApiParam({ name: 'sessionId', description: 'Session ID' })
+  @ApiParam({ name: 'sessionId', description: 'Session UUID (the session id, not the name)' })
   @ApiParam({ name: 'labelId', description: 'Label ID' })
   @ApiResponse({
     status: 200,
     description: 'Label details',
   })
   @ApiResponse({ status: 404, description: 'Label not found' })
+  @Mcp()
   async findOne(@Param('sessionId') sessionId: string, @Param('labelId') labelId: string) {
     return this.labelService.getLabelById(sessionId, labelId);
   }
 
   @Get('chat/:chatId')
   @ApiOperation({ summary: 'Get labels for a specific chat' })
-  @ApiParam({ name: 'sessionId', description: 'Session ID' })
+  @ApiParam({ name: 'sessionId', description: 'Session UUID (the session id, not the name)' })
   @ApiParam({ name: 'chatId', description: 'Chat ID' })
   @ApiResponse({
     status: 200,
     description: 'List of labels for the chat',
   })
+  @Mcp()
   async getChatLabels(@Param('sessionId') sessionId: string, @Param('chatId') chatId: string) {
     return this.labelService.getChatLabels(sessionId, chatId);
   }
@@ -51,7 +55,7 @@ export class LabelController {
   @Post('chat/:chatId')
   @RequireRole(ApiKeyRole.OPERATOR)
   @ApiOperation({ summary: 'Add a label to a chat' })
-  @ApiParam({ name: 'sessionId', description: 'Session ID' })
+  @ApiParam({ name: 'sessionId', description: 'Session UUID (the session id, not the name)' })
   @ApiParam({ name: 'chatId', description: 'Chat ID' })
   @ApiBody({
     schema: {
@@ -66,6 +70,7 @@ export class LabelController {
     status: 200,
     description: 'Label added to chat',
   })
+  @Mcp()
   async addLabelToChat(
     @Param('sessionId') sessionId: string,
     @Param('chatId') chatId: string,
@@ -78,13 +83,14 @@ export class LabelController {
   @Delete('chat/:chatId/:labelId')
   @RequireRole(ApiKeyRole.OPERATOR)
   @ApiOperation({ summary: 'Remove a label from a chat' })
-  @ApiParam({ name: 'sessionId', description: 'Session ID' })
+  @ApiParam({ name: 'sessionId', description: 'Session UUID (the session id, not the name)' })
   @ApiParam({ name: 'chatId', description: 'Chat ID' })
   @ApiParam({ name: 'labelId', description: 'Label ID to remove' })
   @ApiResponse({
     status: 200,
     description: 'Label removed from chat',
   })
+  @Mcp()
   async removeLabelFromChat(
     @Param('sessionId') sessionId: string,
     @Param('chatId') chatId: string,

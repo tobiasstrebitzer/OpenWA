@@ -32,6 +32,7 @@ import { CatalogModule } from './modules/catalog/catalog.module';
 import { HooksModule } from './core/hooks';
 import { PluginsModule } from './core/plugins';
 import { PluginsApiModule } from './modules/plugins/plugins.module';
+import { ApiKeyGuard } from './modules/auth/guards/api-key.guard';
 
 // Only import QueueModule if explicitly enabled to avoid Redis connection errors
 const queueModules: Array<Type | DynamicModule> = [];
@@ -41,6 +42,27 @@ if (process.env.QUEUE_ENABLED === 'true') {
     QueueModule: Type;
   };
   queueModules.push(queueModule.QueueModule);
+}
+
+// MCP is opt-in (off by default). Only when enabled do we load the MCP module and mount
+// the Streamable-HTTP transport at /mcp; it reflects @Mcp()-decorated controller routes
+// into MCP tools. Gating the module (not just the route) keeps the MCP SDK off the
+// default boot path entirely. globalGuards:[ApiKeyGuard] runs the app's API-key guard on
+// every tool call (APP_GUARDs don't auto-apply to the manually-mounted MCP route; the
+// throttler is deliberately excluded - it needs a writable response MCP doesn't provide).
+const mcpModules: Array<Type | DynamicModule> = [];
+if (process.env.MCP_ENABLED === 'true') {
+  // eslint-disable-next-line @typescript-eslint/no-require-imports
+  const { McpModule } = require('./modules/mcp/mcp.module') as typeof import('./modules/mcp/mcp.module');
+  // eslint-disable-next-line @typescript-eslint/no-require-imports
+  const { version } = require('../package.json') as { version: string };
+  mcpModules.push(
+    McpModule.forRoot({
+      basePath: '/mcp',
+      serverInfo: { name: 'openwa', description: 'OpenWA - self-hosted WhatsApp HTTP API', version },
+      globalGuards: [ApiKeyGuard],
+    }),
+  );
 }
 
 // Serve the bundled dashboard SPA from this same NestJS process/port when a build is
@@ -216,6 +238,7 @@ if (dashboardServingEnabled && dashboardBuildPresent) {
     StatusModule, // Phase 3: Status/Stories API
     CatalogModule, // Phase 3: Catalog API (WhatsApp Business)
     PluginsApiModule, // Phase 5: Plugins API
+    ...mcpModules, // Opt-in MCP server (MCP_ENABLED=true) - additive, reflects @Mcp() routes
     ...serveStaticModules, // Bundled dashboard SPA (production single-port setup)
   ],
 })

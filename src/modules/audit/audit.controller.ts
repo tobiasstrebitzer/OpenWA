@@ -4,6 +4,7 @@ import { AuditService, AuditQueryOptions } from './audit.service';
 import { AuditLog, AuditAction, AuditSeverity } from './entities/audit-log.entity';
 import { RequireRole } from '../auth/decorators/auth.decorators';
 import { ApiKeyRole } from '../auth/entities/api-key.entity';
+import { Mcp } from '../mcp/mcp.decorator';
 
 @ApiTags('audit')
 @Controller('audit')
@@ -15,7 +16,7 @@ export class AuditController {
   @ApiOperation({ summary: 'List audit logs with optional filters' })
   @ApiQuery({ name: 'action', required: false, enum: AuditAction })
   @ApiQuery({ name: 'severity', required: false, enum: AuditSeverity })
-  @ApiQuery({ name: 'sessionId', required: false })
+  @ApiQuery({ name: 'sessionId', required: false, description: 'Session UUID (the session id, not the name)' })
   @ApiQuery({ name: 'apiKeyId', required: false })
   @ApiQuery({ name: 'limit', required: false, type: Number })
   @ApiQuery({ name: 'offset', required: false, type: Number })
@@ -23,6 +24,7 @@ export class AuditController {
     status: 200,
     description: 'Paginated list of audit logs',
   })
+  @Mcp()
   async findAll(
     @Query('action') action?: AuditAction,
     @Query('severity') severity?: AuditSeverity,

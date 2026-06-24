@@ -15,6 +15,7 @@ import {
 } from './dto/message-actions.dto';
 import { RequireRole } from '../auth/decorators/auth.decorators';
 import { ApiKeyRole } from '../auth/entities/api-key.entity';
+import { Mcp } from '../mcp/mcp.decorator';
 
 @ApiTags('messages')
 @Controller('sessions/:sessionId/messages')
@@ -26,7 +27,7 @@ export class MessageController {
 
   @Get()
   @ApiOperation({ summary: 'Get message history for a session' })
-  @ApiParam({ name: 'sessionId', description: 'Session ID' })
+  @ApiParam({ name: 'sessionId', description: 'Session UUID (the session id, not the name)' })
   @ApiQuery({ name: 'chatId', required: false, description: 'Filter by chat ID' })
   @ApiQuery({
     name: 'from',
@@ -39,6 +40,7 @@ export class MessageController {
     status: 200,
     description: 'Message history',
   })
+  @Mcp()
   async getMessages(
     @Param('sessionId') sessionId: string,
     @Query('chatId') chatId?: string,
@@ -57,7 +59,7 @@ export class MessageController {
   @Post('send-text')
   @RequireRole(ApiKeyRole.OPERATOR)
   @ApiOperation({ summary: 'Send a text message' })
-  @ApiParam({ name: 'sessionId', description: 'Session ID' })
+  @ApiParam({ name: 'sessionId', description: 'Session UUID (the session id, not the name)' })
   @ApiResponse({
     status: 201,
     description: 'Message sent',
@@ -68,6 +70,7 @@ export class MessageController {
     description: 'Session not active or invalid request',
   })
   @ApiResponse({ status: 404, description: 'Session not found' })
+  @Mcp()
   async sendText(@Param('sessionId') sessionId: string, @Body() dto: SendTextMessageDto): Promise<MessageResponseDto> {
     return this.messageService.sendText(sessionId, dto);
   }
@@ -75,7 +78,7 @@ export class MessageController {
   @Post('send-template')
   @RequireRole(ApiKeyRole.OPERATOR)
   @ApiOperation({ summary: 'Render a stored text template and send it as a text message' })
-  @ApiParam({ name: 'sessionId', description: 'Session ID' })
+  @ApiParam({ name: 'sessionId', description: 'Session UUID (the session id, not the name)' })
   @ApiResponse({
     status: 201,
     description: 'Template rendered and sent',
@@ -86,6 +89,7 @@ export class MessageController {
     description: 'Session not active or invalid request',
   })
   @ApiResponse({ status: 404, description: 'Session or template not found' })
+  @Mcp()
   async sendTemplate(
     @Param('sessionId') sessionId: string,
     @Body() dto: SendTemplateMessageDto,
@@ -96,7 +100,7 @@ export class MessageController {
   @Post('send-image')
   @RequireRole(ApiKeyRole.OPERATOR)
   @ApiOperation({ summary: 'Send an image message' })
-  @ApiParam({ name: 'sessionId', description: 'Session ID' })
+  @ApiParam({ name: 'sessionId', description: 'Session UUID (the session id, not the name)' })
   @ApiResponse({
     status: 201,
     description: 'Image sent',
@@ -106,6 +110,7 @@ export class MessageController {
     status: 400,
     description: 'Session not active or invalid request',
   })
+  @Mcp()
   async sendImage(
     @Param('sessionId') sessionId: string,
     @Body() dto: SendMediaMessageDto,
@@ -116,7 +121,7 @@ export class MessageController {
   @Post('send-video')
   @RequireRole(ApiKeyRole.OPERATOR)
   @ApiOperation({ summary: 'Send a video message' })
-  @ApiParam({ name: 'sessionId', description: 'Session ID' })
+  @ApiParam({ name: 'sessionId', description: 'Session UUID (the session id, not the name)' })
   @ApiResponse({
     status: 201,
     description: 'Video sent',
@@ -126,6 +131,7 @@ export class MessageController {
     status: 400,
     description: 'Session not active or invalid request',
   })
+  @Mcp()
   async sendVideo(
     @Param('sessionId') sessionId: string,
     @Body() dto: SendMediaMessageDto,
@@ -136,7 +142,7 @@ export class MessageController {
   @Post('send-audio')
   @RequireRole(ApiKeyRole.OPERATOR)
   @ApiOperation({ summary: 'Send an audio/voice message' })
-  @ApiParam({ name: 'sessionId', description: 'Session ID' })
+  @ApiParam({ name: 'sessionId', description: 'Session UUID (the session id, not the name)' })
   @ApiResponse({
     status: 201,
     description: 'Audio sent',
@@ -146,6 +152,7 @@ export class MessageController {
     status: 400,
     description: 'Session not active or invalid request',
   })
+  @Mcp()
   async sendAudio(
     @Param('sessionId') sessionId: string,
     @Body() dto: SendMediaMessageDto,
@@ -156,7 +163,7 @@ export class MessageController {
   @Post('send-document')
   @RequireRole(ApiKeyRole.OPERATOR)
   @ApiOperation({ summary: 'Send a document/file' })
-  @ApiParam({ name: 'sessionId', description: 'Session ID' })
+  @ApiParam({ name: 'sessionId', description: 'Session UUID (the session id, not the name)' })
   @ApiResponse({
     status: 201,
     description: 'Document sent',
@@ -166,6 +173,7 @@ export class MessageController {
     status: 400,
     description: 'Session not active or invalid request',
   })
+  @Mcp()
   async sendDocument(
     @Param('sessionId') sessionId: string,
     @Body() dto: SendMediaMessageDto,
@@ -178,12 +186,13 @@ export class MessageController {
   @Post('send-location')
   @RequireRole(ApiKeyRole.OPERATOR)
   @ApiOperation({ summary: 'Send a location message' })
-  @ApiParam({ name: 'sessionId', description: 'Session ID' })
+  @ApiParam({ name: 'sessionId', description: 'Session UUID (the session id, not the name)' })
   @ApiResponse({
     status: 201,
     description: 'Location sent',
     type: MessageResponseDto,
   })
+  @Mcp()
   async sendLocation(@Param('sessionId') sessionId: string, @Body() dto: SendLocationDto): Promise<MessageResponseDto> {
     return this.messageService.sendLocation(sessionId, dto);
   }
@@ -191,12 +200,13 @@ export class MessageController {
   @Post('send-contact')
   @RequireRole(ApiKeyRole.OPERATOR)
   @ApiOperation({ summary: 'Send a contact card message' })
-  @ApiParam({ name: 'sessionId', description: 'Session ID' })
+  @ApiParam({ name: 'sessionId', description: 'Session UUID (the session id, not the name)' })
   @ApiResponse({
     status: 201,
     description: 'Contact sent',
     type: MessageResponseDto,
   })
+  @Mcp()
   async sendContact(@Param('sessionId') sessionId: string, @Body() dto: SendContactDto): Promise<MessageResponseDto> {
     return this.messageService.sendContact(sessionId, dto);
   }
@@ -204,12 +214,13 @@ export class MessageController {
   @Post('send-sticker')
   @RequireRole(ApiKeyRole.OPERATOR)
   @ApiOperation({ summary: 'Send a sticker message' })
-  @ApiParam({ name: 'sessionId', description: 'Session ID' })
+  @ApiParam({ name: 'sessionId', description: 'Session UUID (the session id, not the name)' })
   @ApiResponse({
     status: 201,
     description: 'Sticker sent',
     type: MessageResponseDto,
   })
+  @Mcp()
   async sendSticker(
     @Param('sessionId') sessionId: string,
     @Body() dto: SendMediaMessageDto,
@@ -220,12 +231,13 @@ export class MessageController {
   @Post('reply')
   @RequireRole(ApiKeyRole.OPERATOR)
   @ApiOperation({ summary: 'Reply to a message' })
-  @ApiParam({ name: 'sessionId', description: 'Session ID' })
+  @ApiParam({ name: 'sessionId', description: 'Session UUID (the session id, not the name)' })
   @ApiResponse({
     status: 201,
     description: 'Reply sent',
     type: MessageResponseDto,
   })
+  @Mcp()
   async reply(@Param('sessionId') sessionId: string, @Body() dto: ReplyMessageDto): Promise<MessageResponseDto> {
     return this.messageService.reply(sessionId, dto);
   }
@@ -233,12 +245,13 @@ export class MessageController {
   @Post('forward')
   @RequireRole(ApiKeyRole.OPERATOR)
   @ApiOperation({ summary: 'Forward a message to another chat' })
-  @ApiParam({ name: 'sessionId', description: 'Session ID' })
+  @ApiParam({ name: 'sessionId', description: 'Session UUID (the session id, not the name)' })
   @ApiResponse({
     status: 201,
     description: 'Message forwarded',
     type: MessageResponseDto,
   })
+  @Mcp()
   async forward(@Param('sessionId') sessionId: string, @Body() dto: ForwardMessageDto): Promise<MessageResponseDto> {
     return this.messageService.forward(sessionId, dto);
   }
@@ -249,7 +262,7 @@ export class MessageController {
   @HttpCode(HttpStatus.OK)
   @RequireRole(ApiKeyRole.OPERATOR)
   @ApiOperation({ summary: 'Add or remove a reaction to a message' })
-  @ApiParam({ name: 'sessionId', description: 'Session ID' })
+  @ApiParam({ name: 'sessionId', description: 'Session UUID (the session id, not the name)' })
   @ApiResponse({
     status: 200,
     description: 'Reaction added or removed. Send empty emoji to remove reaction.',
@@ -258,6 +271,7 @@ export class MessageController {
     status: 400,
     description: 'Session not active or message not found',
   })
+  @Mcp()
   async react(@Param('sessionId') sessionId: string, @Body() dto: ReactMessageDto): Promise<{ success: boolean }> {
     await this.messageService.reactToMessage(sessionId, dto);
     return { success: true };
@@ -270,7 +284,7 @@ export class MessageController {
       'Reads messages directly from the WhatsApp client for the given chat, bypassing the local DB. ' +
       'Useful for retrieving messages that arrived before the gateway was started.',
   })
-  @ApiParam({ name: 'sessionId', description: 'Session ID' })
+  @ApiParam({ name: 'sessionId', description: 'Session UUID (the session id, not the name)' })
   @ApiParam({ name: 'chatId', description: 'Chat ID (e.g. 1234567890@c.us or groupId@g.us)' })
   @ApiQuery({ name: 'limit', required: false, type: Number, description: 'Max messages to return (default 50)' })
   @ApiQuery({
@@ -289,6 +303,7 @@ export class MessageController {
       'is ignored). Large/slow requests may increase WhatsApp rate-limiting risk; default false.',
   })
   @ApiResponse({ status: 200, description: 'Chat history (most recent messages)' })
+  @Mcp()
   async getChatHistory(
     @Param('sessionId') sessionId: string,
     @Param('chatId') chatId: string,
@@ -310,13 +325,14 @@ export class MessageController {
 
   @Get(':chatId/:messageId/reactions')
   @ApiOperation({ summary: 'Get reactions for a specific message' })
-  @ApiParam({ name: 'sessionId', description: 'Session ID' })
+  @ApiParam({ name: 'sessionId', description: 'Session UUID (the session id, not the name)' })
   @ApiParam({ name: 'chatId', description: 'Chat ID containing the message' })
   @ApiParam({ name: 'messageId', description: 'Message ID to get reactions for' })
   @ApiResponse({
     status: 200,
     description: 'List of reactions with senders',
   })
+  @Mcp()
   async getReactions(
     @Param('sessionId') sessionId: string,
     @Param('chatId') chatId: string,
@@ -331,7 +347,7 @@ export class MessageController {
   @HttpCode(HttpStatus.OK)
   @RequireRole(ApiKeyRole.OPERATOR)
   @ApiOperation({ summary: 'Delete a message' })
-  @ApiParam({ name: 'sessionId', description: 'Session ID' })
+  @ApiParam({ name: 'sessionId', description: 'Session UUID (the session id, not the name)' })
   @ApiResponse({
     status: 200,
     description: 'Message deleted',
@@ -340,6 +356,7 @@ export class MessageController {
     status: 400,
     description: 'Session not active or message not found',
   })
+  @Mcp()
   async deleteMessage(
     @Param('sessionId') sessionId: string,
     @Body() dto: DeleteMessageDto,
@@ -354,7 +371,7 @@ export class MessageController {
   @RequireRole(ApiKeyRole.OPERATOR)
   @HttpCode(HttpStatus.ACCEPTED)
   @ApiOperation({ summary: 'Send messages to multiple recipients (async batch processing)' })
-  @ApiParam({ name: 'sessionId', description: 'Session ID' })
+  @ApiParam({ name: 'sessionId', description: 'Session UUID (the session id, not the name)' })
   @ApiResponse({
     status: 202,
     description: 'Batch created and processing started',
@@ -364,6 +381,7 @@ export class MessageController {
     status: 400,
     description: 'Session not active or invalid request',
   })
+  @Mcp()
   async sendBulk(
     @Param('sessionId') sessionId: string,
     @Body() dto: SendBulkMessageDto,
@@ -382,7 +400,7 @@ export class MessageController {
 
   @Get('batch/:batchId')
   @ApiOperation({ summary: 'Get batch processing status' })
-  @ApiParam({ name: 'sessionId', description: 'Session ID' })
+  @ApiParam({ name: 'sessionId', description: 'Session UUID (the session id, not the name)' })
   @ApiParam({ name: 'batchId', description: 'Batch ID' })
   @ApiResponse({
     status: 200,
@@ -392,6 +410,7 @@ export class MessageController {
     status: 404,
     description: 'Batch not found',
   })
+  @Mcp()
   async getBatchStatus(@Param('sessionId') sessionId: string, @Param('batchId') batchId: string) {
     const batch = await this.bulkMessageService.getBatchStatus(sessionId, batchId);
     return {
@@ -408,7 +427,7 @@ export class MessageController {
   @RequireRole(ApiKeyRole.OPERATOR)
   @HttpCode(HttpStatus.OK)
   @ApiOperation({ summary: 'Cancel a running batch' })
-  @ApiParam({ name: 'sessionId', description: 'Session ID' })
+  @ApiParam({ name: 'sessionId', description: 'Session UUID (the session id, not the name)' })
   @ApiParam({ name: 'batchId', description: 'Batch ID' })
   @ApiResponse({
     status: 200,
@@ -422,6 +441,7 @@ export class MessageController {
     status: 404,
     description: 'Batch not found',
   })
+  @Mcp()
   async cancelBatch(@Param('sessionId') sessionId: string, @Param('batchId') batchId: string) {
     const batch = await this.bulkMessageService.cancelBatch(sessionId, batchId);
     return {

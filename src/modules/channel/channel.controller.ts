@@ -4,6 +4,7 @@ import { ChannelService } from './channel.service';
 import { SubscribeChannelDto } from './dto/subscribe-channel.dto';
 import { RequireRole } from '../auth/decorators/auth.decorators';
 import { ApiKeyRole } from '../auth/entities/api-key.entity';
+import { Mcp } from '../mcp/mcp.decorator';
 
 @ApiTags('channels')
 @Controller('sessions/:sessionId/channels')
@@ -12,38 +13,41 @@ export class ChannelController {
 
   @Get()
   @ApiOperation({ summary: 'Get all subscribed channels/newsletters' })
-  @ApiParam({ name: 'sessionId', description: 'Session ID' })
+  @ApiParam({ name: 'sessionId', description: 'Session UUID (the session id, not the name)' })
   @ApiResponse({
     status: 200,
     description: 'List of subscribed channels',
   })
   @ApiResponse({ status: 400, description: 'Session not ready' })
+  @Mcp()
   async findAll(@Param('sessionId') sessionId: string) {
     return this.channelService.getSubscribedChannels(sessionId);
   }
 
   @Get(':channelId')
   @ApiOperation({ summary: 'Get a specific channel by ID' })
-  @ApiParam({ name: 'sessionId', description: 'Session ID' })
+  @ApiParam({ name: 'sessionId', description: 'Session UUID (the session id, not the name)' })
   @ApiParam({ name: 'channelId', description: 'Channel ID' })
   @ApiResponse({
     status: 200,
     description: 'Channel details',
   })
   @ApiResponse({ status: 404, description: 'Channel not found' })
+  @Mcp()
   async findOne(@Param('sessionId') sessionId: string, @Param('channelId') channelId: string) {
     return this.channelService.getChannelById(sessionId, channelId);
   }
 
   @Get(':channelId/messages')
   @ApiOperation({ summary: 'Get messages from a channel' })
-  @ApiParam({ name: 'sessionId', description: 'Session ID' })
+  @ApiParam({ name: 'sessionId', description: 'Session UUID (the session id, not the name)' })
   @ApiParam({ name: 'channelId', description: 'Channel ID' })
   @ApiQuery({ name: 'limit', required: false, type: Number, description: 'Max messages to return (default 50)' })
   @ApiResponse({
     status: 200,
     description: 'List of channel messages',
   })
+  @Mcp()
   async getMessages(
     @Param('sessionId') sessionId: string,
     @Param('channelId') channelId: string,
@@ -55,7 +59,7 @@ export class ChannelController {
   @Post('subscribe')
   @RequireRole(ApiKeyRole.OPERATOR)
   @ApiOperation({ summary: 'Subscribe to a channel using invite code' })
-  @ApiParam({ name: 'sessionId', description: 'Session ID' })
+  @ApiParam({ name: 'sessionId', description: 'Session UUID (the session id, not the name)' })
   @ApiBody({
     schema: {
       type: 'object',
@@ -73,6 +77,7 @@ export class ChannelController {
     status: 201,
     description: 'Successfully subscribed to channel',
   })
+  @Mcp()
   async subscribe(@Param('sessionId') sessionId: string, @Body() body: SubscribeChannelDto) {
     return this.channelService.subscribeToChannel(sessionId, body.inviteCode);
   }
@@ -80,12 +85,13 @@ export class ChannelController {
   @Delete(':channelId')
   @RequireRole(ApiKeyRole.OPERATOR)
   @ApiOperation({ summary: 'Unsubscribe from a channel' })
-  @ApiParam({ name: 'sessionId', description: 'Session ID' })
+  @ApiParam({ name: 'sessionId', description: 'Session UUID (the session id, not the name)' })
   @ApiParam({ name: 'channelId', description: 'Channel ID to unsubscribe from' })
   @ApiResponse({
     status: 200,
     description: 'Successfully unsubscribed from channel',
   })
+  @Mcp()
   async unsubscribe(@Param('sessionId') sessionId: string, @Param('channelId') channelId: string) {
     await this.channelService.unsubscribeFromChannel(sessionId, channelId);
     return { success: true };

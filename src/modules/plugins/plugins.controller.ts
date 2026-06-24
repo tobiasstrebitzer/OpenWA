@@ -19,6 +19,7 @@ import { PluginDto, PluginConfigDto, PluginSessionsDto, InstallFromUrlDto } from
 import type { CatalogPlugin } from './catalog';
 import { RequireRole, CurrentApiKey } from '../auth/decorators/auth.decorators';
 import { ApiKey, ApiKeyRole } from '../auth/entities/api-key.entity';
+import { Mcp } from '../mcp/mcp.decorator';
 
 /** Max accepted upload size for a plugin package (compressed). */
 const MAX_PLUGIN_UPLOAD_BYTES = 5 * 1024 * 1024;
@@ -32,6 +33,7 @@ export class PluginsController {
   @RequireRole(ApiKeyRole.ADMIN)
   @ApiOperation({ summary: 'List all plugins' })
   @ApiResponse({ status: 200, description: 'List of all plugins' })
+  @Mcp()
   findAll(): PluginDto[] {
     return this.pluginsService.findAll();
   }
@@ -54,6 +56,7 @@ export class PluginsController {
   @ApiResponse({ status: 201, description: 'Plugin installed' })
   @ApiResponse({ status: 400, description: 'Invalid URL, download failed, or invalid package' })
   @ApiResponse({ status: 409, description: 'Plugin already installed' })
+  @Mcp()
   async installFromUrl(@Body() dto: InstallFromUrlDto): Promise<PluginDto> {
     return await this.pluginsService.installFromUrl(dto.url);
   }
@@ -64,6 +67,7 @@ export class PluginsController {
   @ApiOperation({ summary: 'List the remote plugin catalog, annotated with install state' })
   @ApiResponse({ status: 200, description: 'Catalog entries' })
   @ApiResponse({ status: 400, description: 'Catalog could not be fetched or parsed' })
+  @Mcp()
   async catalog(): Promise<CatalogPlugin[]> {
     return await this.pluginsService.getCatalog();
   }
@@ -73,6 +77,7 @@ export class PluginsController {
   @ApiOperation({ summary: 'Get plugin by ID' })
   @ApiResponse({ status: 200, description: 'Plugin details' })
   @ApiResponse({ status: 404, description: 'Plugin not found' })
+  @Mcp()
   findOne(@Param('id') id: string): PluginDto {
     return this.pluginsService.findOne(id);
   }
@@ -82,6 +87,7 @@ export class PluginsController {
   @HttpCode(HttpStatus.OK)
   @ApiOperation({ summary: 'Enable a plugin' })
   @ApiResponse({ status: 200, description: 'Plugin enabled successfully' })
+  @Mcp()
   async enable(@Param('id') id: string): Promise<{ success: boolean; message: string }> {
     return await this.pluginsService.enable(id);
   }
@@ -91,6 +97,7 @@ export class PluginsController {
   @HttpCode(HttpStatus.OK)
   @ApiOperation({ summary: 'Disable a plugin' })
   @ApiResponse({ status: 200, description: 'Plugin disabled successfully' })
+  @Mcp()
   async disable(@Param('id') id: string): Promise<{ success: boolean; message: string }> {
     return await this.pluginsService.disable(id);
   }
@@ -99,6 +106,7 @@ export class PluginsController {
   @RequireRole(ApiKeyRole.ADMIN)
   @ApiOperation({ summary: 'Update plugin configuration' })
   @ApiResponse({ status: 200, description: 'Plugin configuration updated' })
+  @Mcp()
   updateConfig(@Param('id') id: string, @Body() configDto: PluginConfigDto): { success: boolean; message: string } {
     return this.pluginsService.updateConfig(id, configDto.config);
   }
@@ -124,6 +132,7 @@ export class PluginsController {
   @ApiResponse({ status: 200, description: 'Per-session plugin configuration updated' })
   @ApiResponse({ status: 400, description: 'Plugin is global (not session-scoped)' })
   @ApiResponse({ status: 404, description: 'Plugin not found' })
+  @Mcp()
   updateSessionConfig(
     @Param('id') id: string,
     @Param('sessionId') sessionId: string,
@@ -138,6 +147,7 @@ export class PluginsController {
   @ApiResponse({ status: 200, description: 'Plugin session activation updated', type: PluginDto })
   @ApiResponse({ status: 400, description: 'Plugin is global (not session-scoped)' })
   @ApiResponse({ status: 404, description: 'Plugin not found' })
+  @Mcp()
   updateSessions(@Param('id') id: string, @Body() dto: PluginSessionsDto, @CurrentApiKey() apiKey?: ApiKey): PluginDto {
     // The target sessions live in the body, which the ApiKeyGuard (keyed off route params) never
     // inspects — so a session-restricted key's allowedSessions scope must be enforced here.
@@ -150,6 +160,7 @@ export class PluginsController {
   @ApiResponse({ status: 201, description: 'Plugin updated' })
   @ApiResponse({ status: 400, description: 'Invalid URL/package, id mismatch, or built-in' })
   @ApiResponse({ status: 404, description: 'Plugin not found' })
+  @Mcp()
   async update(@Param('id') id: string, @Body() dto: InstallFromUrlDto): Promise<PluginDto> {
     return await this.pluginsService.updateFromUrl(id, dto.url);
   }
@@ -160,6 +171,7 @@ export class PluginsController {
   @ApiResponse({ status: 200, description: 'Plugin uninstalled' })
   @ApiResponse({ status: 400, description: 'Cannot uninstall (e.g. built-in)' })
   @ApiResponse({ status: 404, description: 'Plugin not found' })
+  @Mcp()
   async uninstall(@Param('id') id: string): Promise<{ success: boolean; message: string }> {
     return await this.pluginsService.uninstall(id);
   }
@@ -168,6 +180,7 @@ export class PluginsController {
   @RequireRole(ApiKeyRole.ADMIN)
   @ApiOperation({ summary: 'Check plugin health' })
   @ApiResponse({ status: 200, description: 'Plugin health status' })
+  @Mcp()
   async healthCheck(@Param('id') id: string): Promise<{ healthy: boolean; message?: string }> {
     return await this.pluginsService.healthCheck(id);
   }

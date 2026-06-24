@@ -4,6 +4,7 @@ import { CatalogService } from './catalog.service';
 import { SendProductDto, SendCatalogDto, ProductQueryDto } from './dto/send-product.dto';
 import { RequireRole } from '../auth/decorators/auth.decorators';
 import { ApiKeyRole } from '../auth/entities/api-key.entity';
+import { Mcp } from '../mcp/mcp.decorator';
 
 @ApiTags('Catalog')
 @Controller('sessions/:sessionId')
@@ -12,18 +13,21 @@ export class CatalogController {
 
   @Get('catalog')
   @ApiOperation({ summary: 'Get business catalog info' })
+  @Mcp()
   async getCatalog(@Param('sessionId') sessionId: string) {
     return this.catalogService.getCatalog(sessionId);
   }
 
   @Get('catalog/products')
   @ApiOperation({ summary: 'List catalog products' })
+  @Mcp()
   async getProducts(@Param('sessionId') sessionId: string, @Query() query: ProductQueryDto) {
     return this.catalogService.getProducts(sessionId, query.page, query.limit);
   }
 
   @Get('catalog/products/:productId')
   @ApiOperation({ summary: 'Get a specific product' })
+  @Mcp()
   async getProduct(@Param('sessionId') sessionId: string, @Param('productId') productId: string) {
     return this.catalogService.getProduct(sessionId, productId);
   }
@@ -31,6 +35,7 @@ export class CatalogController {
   @Post('messages/send-product')
   @RequireRole(ApiKeyRole.OPERATOR)
   @ApiOperation({ summary: 'Send a product message' })
+  @Mcp()
   async sendProduct(@Param('sessionId') sessionId: string, @Body() dto: SendProductDto) {
     return this.catalogService.sendProduct(sessionId, dto.chatId, dto.productId, dto.body);
   }
@@ -38,6 +43,7 @@ export class CatalogController {
   @Post('messages/send-catalog')
   @RequireRole(ApiKeyRole.OPERATOR)
   @ApiOperation({ summary: 'Send catalog link' })
+  @Mcp()
   async sendCatalog(@Param('sessionId') sessionId: string, @Body() dto: SendCatalogDto) {
     return this.catalogService.sendCatalog(sessionId, dto.chatId, dto.body);
   }

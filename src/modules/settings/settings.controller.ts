@@ -3,6 +3,7 @@ import { ApiTags, ApiOperation, ApiResponse } from '@nestjs/swagger';
 import { ConfigService } from '@nestjs/config';
 import { RequireRole } from '../auth/decorators/auth.decorators';
 import { ApiKeyRole } from '../auth/entities/api-key.entity';
+import { Mcp } from '../mcp/mcp.decorator';
 
 interface Settings {
   general: {
@@ -55,6 +56,7 @@ export class SettingsController {
   @Get()
   @ApiOperation({ summary: 'Get application settings' })
   @ApiResponse({ status: 200, description: 'Current settings' })
+  @Mcp()
   get(): Settings {
     return this.settings;
   }
@@ -66,6 +68,7 @@ export class SettingsController {
     status: 501,
     description: 'Settings are derived from environment configuration and cannot be changed at runtime',
   })
+  @Mcp()
   update(): never {
     // Every Settings field is derived from environment variables and consumed at boot /
     // decorator-evaluation time (ThrottlerModule.forRootAsync, port, webhook timeout, DB logging),

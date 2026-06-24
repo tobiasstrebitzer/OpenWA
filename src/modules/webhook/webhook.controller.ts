@@ -4,6 +4,7 @@ import { WebhookService } from './webhook.service';
 import { CreateWebhookDto, UpdateWebhookDto, WebhookResponseDto } from './dto';
 import { RequireRole } from '../auth/decorators/auth.decorators';
 import { ApiKeyRole } from '../auth/entities/api-key.entity';
+import { Mcp } from '../mcp/mcp.decorator';
 
 @ApiTags('webhooks')
 @Controller('sessions/:sessionId/webhooks')
@@ -13,12 +14,13 @@ export class WebhookController {
   @Post()
   @RequireRole(ApiKeyRole.OPERATOR)
   @ApiOperation({ summary: 'Create a webhook for the session' })
-  @ApiParam({ name: 'sessionId', description: 'Session ID' })
+  @ApiParam({ name: 'sessionId', description: 'Session UUID (the session id, not the name)' })
   @ApiResponse({
     status: 201,
     description: 'Webhook created',
     type: WebhookResponseDto,
   })
+  @Mcp()
   async create(@Param('sessionId') sessionId: string, @Body() dto: CreateWebhookDto): Promise<WebhookResponseDto> {
     return WebhookResponseDto.fromEntity(await this.webhookService.create(sessionId, dto));
   }
@@ -26,12 +28,13 @@ export class WebhookController {
   @Get()
   @RequireRole(ApiKeyRole.OPERATOR)
   @ApiOperation({ summary: 'List all webhooks for a session' })
-  @ApiParam({ name: 'sessionId', description: 'Session ID' })
+  @ApiParam({ name: 'sessionId', description: 'Session UUID (the session id, not the name)' })
   @ApiResponse({
     status: 200,
     description: 'List of webhooks',
     type: [WebhookResponseDto],
   })
+  @Mcp()
   async findBySession(@Param('sessionId') sessionId: string): Promise<WebhookResponseDto[]> {
     return WebhookResponseDto.fromEntities(await this.webhookService.findBySession(sessionId));
   }
@@ -39,7 +42,7 @@ export class WebhookController {
   @Get(':id')
   @RequireRole(ApiKeyRole.OPERATOR)
   @ApiOperation({ summary: 'Get a webhook by ID' })
-  @ApiParam({ name: 'sessionId', description: 'Session ID' })
+  @ApiParam({ name: 'sessionId', description: 'Session UUID (the session id, not the name)' })
   @ApiParam({ name: 'id', description: 'Webhook ID' })
   @ApiResponse({
     status: 200,
@@ -47,6 +50,7 @@ export class WebhookController {
     type: WebhookResponseDto,
   })
   @ApiResponse({ status: 404, description: 'Webhook not found' })
+  @Mcp()
   async findOne(@Param('sessionId') sessionId: string, @Param('id') id: string): Promise<WebhookResponseDto> {
     return WebhookResponseDto.fromEntity(await this.webhookService.findOne(sessionId, id));
   }
@@ -54,7 +58,7 @@ export class WebhookController {
   @Put(':id')
   @RequireRole(ApiKeyRole.OPERATOR)
   @ApiOperation({ summary: 'Update a webhook' })
-  @ApiParam({ name: 'sessionId', description: 'Session ID' })
+  @ApiParam({ name: 'sessionId', description: 'Session UUID (the session id, not the name)' })
   @ApiParam({ name: 'id', description: 'Webhook ID' })
   @ApiResponse({
     status: 200,
@@ -62,6 +66,7 @@ export class WebhookController {
     type: WebhookResponseDto,
   })
   @ApiResponse({ status: 404, description: 'Webhook not found' })
+  @Mcp()
   async update(
     @Param('sessionId') sessionId: string,
     @Param('id') id: string,
@@ -73,10 +78,11 @@ export class WebhookController {
   @Post(':id/test')
   @RequireRole(ApiKeyRole.OPERATOR)
   @ApiOperation({ summary: 'Test a webhook by sending a test payload' })
-  @ApiParam({ name: 'sessionId', description: 'Session ID' })
+  @ApiParam({ name: 'sessionId', description: 'Session UUID (the session id, not the name)' })
   @ApiParam({ name: 'id', description: 'Webhook ID' })
   @ApiResponse({ status: 200, description: 'Test result' })
   @ApiResponse({ status: 404, description: 'Webhook not found' })
+  @Mcp()
   async test(
     @Param('sessionId') sessionId: string,
     @Param('id') id: string,
@@ -88,10 +94,11 @@ export class WebhookController {
   @RequireRole(ApiKeyRole.OPERATOR)
   @HttpCode(HttpStatus.NO_CONTENT)
   @ApiOperation({ summary: 'Delete a webhook' })
-  @ApiParam({ name: 'sessionId', description: 'Session ID' })
+  @ApiParam({ name: 'sessionId', description: 'Session UUID (the session id, not the name)' })
   @ApiParam({ name: 'id', description: 'Webhook ID' })
   @ApiResponse({ status: 204, description: 'Webhook deleted' })
   @ApiResponse({ status: 404, description: 'Webhook not found' })
+  @Mcp()
   async delete(@Param('sessionId') sessionId: string, @Param('id') id: string): Promise<void> {
     return this.webhookService.delete(sessionId, id);
   }

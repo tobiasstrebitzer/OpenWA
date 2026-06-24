@@ -277,6 +277,35 @@ curl -X POST http://localhost:2785/api/sessions/{sessionId}/webhooks \
 
 ---
 
+## 🤖 MCP (Model Context Protocol)
+
+OpenWA can expose its API as [MCP](https://modelcontextprotocol.io) tools so AI agents (Claude, Cursor, …) can drive WhatsApp directly — list sessions, send messages, manage groups/webhooks, and more. It is **off by default** and **additive**: the REST API is unchanged.
+
+```bash
+# Enable the MCP server (mounts on the existing port — no extra process)
+MCP_ENABLED=true npm run start:prod
+```
+
+- **Endpoint:** a stateless Streamable-HTTP transport at `POST /mcp` on the same host/port as the API.
+- **Tools:** existing controller routes are exposed as tools (e.g. `SessionFindAll`, `MessageSendText`), with each tool's input schema reflected from the route's parameters and DTOs.
+- **Auth:** every tool call enforces the same security as REST — pass your key as `X-API-Key` (or `Authorization: Bearer`). `@RequireRole` and per-key **session scoping** are honored, so a key scoped to one session cannot act on another. (There is no client IP over MCP, so IP-allowlisted keys won't authorize MCP calls.)
+- **Off by default:** with `MCP_ENABLED` unset, no `/mcp` route is mounted and the MCP SDK is never loaded.
+
+Example MCP client config (Streamable-HTTP):
+
+```json
+{
+  "mcpServers": {
+    "openwa": {
+      "url": "http://localhost:2785/mcp",
+      "headers": { "X-API-Key": "YOUR_API_KEY" }
+    }
+  }
+}
+```
+
+---
+
 ## 🛠 Tech Stack
 
 | Layer         | Technology              |

@@ -17,6 +17,7 @@ import { AuditService } from '../audit/audit.service';
 import { AuditAction } from '../audit/entities/audit-log.entity';
 import { RequireRole, CurrentApiKey, SessionScoped } from '../auth/decorators/auth.decorators';
 import { ApiKey, ApiKeyRole } from '../auth/entities/api-key.entity';
+import { Mcp } from '../mcp/mcp.decorator';
 
 @ApiTags('sessions')
 @Controller('sessions')
@@ -54,6 +55,7 @@ export class SessionController {
     type: SessionResponseDto,
   })
   @ApiResponse({ status: 409, description: 'Session name already exists' })
+  @Mcp()
   async create(@Body() dto: CreateSessionDto): Promise<Session> {
     const session = await this.sessionService.create(dto);
     await this.auditService.logInfo(AuditAction.SESSION_CREATED, {
@@ -70,6 +72,7 @@ export class SessionController {
     description: 'List of sessions',
     type: [SessionResponseDto],
   })
+  @Mcp()
   async findAll(@CurrentApiKey() apiKey?: ApiKey): Promise<SessionResponseDto[]> {
     // Scope to the key's allowedSessions so a session-restricted key cannot enumerate every
     // session. A null/empty allowlist (e.g. ADMIN) still lists all.
@@ -79,13 +82,14 @@ export class SessionController {
 
   @Get(':id')
   @ApiOperation({ summary: 'Get session by ID' })
-  @ApiParam({ name: 'id', description: 'Session ID' })
+  @ApiParam({ name: 'id', description: 'Session UUID (the session id, not the name)' })
   @ApiResponse({
     status: 200,
     description: 'Session details',
     type: SessionResponseDto,
   })
   @ApiResponse({ status: 404, description: 'Session not found' })
+  @Mcp()
   async findOne(@Param('id') id: string): Promise<SessionResponseDto> {
     const session = await this.sessionService.findOne(id);
     return this.transformSession(session);
@@ -95,9 +99,10 @@ export class SessionController {
   @RequireRole(ApiKeyRole.OPERATOR)
   @HttpCode(HttpStatus.NO_CONTENT)
   @ApiOperation({ summary: 'Delete a session' })
-  @ApiParam({ name: 'id', description: 'Session ID' })
+  @ApiParam({ name: 'id', description: 'Session UUID (the session id, not the name)' })
   @ApiResponse({ status: 204, description: 'Session deleted' })
   @ApiResponse({ status: 404, description: 'Session not found' })
+  @Mcp()
   async delete(@Param('id') id: string): Promise<void> {
     const session = await this.sessionService.findOne(id);
     await this.sessionService.delete(id);
@@ -112,7 +117,7 @@ export class SessionController {
   @ApiOperation({
     summary: 'Start a session and initialize WhatsApp connection',
   })
-  @ApiParam({ name: 'id', description: 'Session ID' })
+  @ApiParam({ name: 'id', description: 'Session UUID (the session id, not the name)' })
   @ApiResponse({
     status: 200,
     description: 'Session started',
@@ -120,6 +125,7 @@ export class SessionController {
   })
   @ApiResponse({ status: 400, description: 'Session already started' })
   @ApiResponse({ status: 404, description: 'Session not found' })
+  @Mcp()
   async start(@Param('id') id: string): Promise<SessionResponseDto> {
     const session = await this.sessionService.start(id);
     await this.auditService.logInfo(AuditAction.SESSION_STARTED, {
@@ -132,13 +138,14 @@ export class SessionController {
   @Post(':id/stop')
   @RequireRole(ApiKeyRole.OPERATOR)
   @ApiOperation({ summary: 'Stop a session and disconnect WhatsApp' })
-  @ApiParam({ name: 'id', description: 'Session ID' })
+  @ApiParam({ name: 'id', description: 'Session UUID (the session id, not the name)' })
   @ApiResponse({
     status: 200,
     description: 'Session stopped',
     type: SessionResponseDto,
   })
   @ApiResponse({ status: 404, description: 'Session not found' })
+  @Mcp()
   async stop(@Param('id') id: string): Promise<SessionResponseDto> {
     const session = await this.sessionService.stop(id);
     await this.auditService.logInfo(AuditAction.SESSION_STOPPED, {
@@ -151,13 +158,14 @@ export class SessionController {
   @Post(':id/force-kill')
   @RequireRole(ApiKeyRole.OPERATOR)
   @ApiOperation({ summary: 'Force-kill a stuck session (SIGKILL its wedged engine, then tear it down)' })
-  @ApiParam({ name: 'id', description: 'Session ID' })
+  @ApiParam({ name: 'id', description: 'Session UUID (the session id, not the name)' })
   @ApiResponse({
     status: 200,
     description: 'Session force-killed',
     type: SessionResponseDto,
   })
   @ApiResponse({ status: 404, description: 'Session not found' })
+  @Mcp()
   async forceKill(@Param('id') id: string): Promise<SessionResponseDto> {
     const session = await this.sessionService.forceKill(id);
     await this.auditService.logInfo(AuditAction.SESSION_FORCE_KILLED, {
@@ -170,7 +178,7 @@ export class SessionController {
   @Get(':id/qr')
   @RequireRole(ApiKeyRole.OPERATOR)
   @ApiOperation({ summary: 'Get QR code for session authentication' })
-  @ApiParam({ name: 'id', description: 'Session ID' })
+  @ApiParam({ name: 'id', description: 'Session UUID (the session id, not the name)' })
   @ApiResponse({
     status: 200,
     description: 'QR code data',
@@ -181,6 +189,7 @@ export class SessionController {
     description: 'QR code not ready or session already authenticated',
   })
   @ApiResponse({ status: 404, description: 'Session not found' })
+  @Mcp()
   async getQRCode(@Param('id') id: string): Promise<QRCodeResponseDto> {
     const qrCode = await this.sessionService.getQRCode(id);
     await this.auditService.logInfo(AuditAction.SESSION_QR_GENERATED, {
@@ -192,10 +201,11 @@ export class SessionController {
   @Post(':id/pairing-code')
   @RequireRole(ApiKeyRole.OPERATOR)
   @ApiOperation({ summary: 'Request an 8-char pairing code to link via phone number (alternative to QR)' })
-  @ApiParam({ name: 'id', description: 'Session ID' })
+  @ApiParam({ name: 'id', description: 'Session UUID (the session id, not the name)' })
   @ApiResponse({ status: 201, description: 'Pairing code generated', type: PairingCodeResponseDto })
   @ApiResponse({ status: 400, description: 'Session not started or already authenticated' })
   @ApiResponse({ status: 404, description: 'Session not found' })
+  @Mcp()
   async requestPairingCode(
     @Param('id') id: string,
     @Body() dto: RequestPairingCodeDto,
@@ -205,7 +215,7 @@ export class SessionController {
 
   @Get(':id/groups')
   @ApiOperation({ summary: 'Get all groups for a session' })
-  @ApiParam({ name: 'id', description: 'Session ID' })
+  @ApiParam({ name: 'id', description: 'Session UUID (the session id, not the name)' })
   @ApiResponse({
     status: 200,
     description: 'List of groups the session is a member of',
@@ -214,6 +224,7 @@ export class SessionController {
   @ApiResponse({ status: 404, description: 'Session not found' })
   @ApiQuery({ name: 'limit', required: false, description: 'Max groups to return (1–1000, default 1000)' })
   @ApiQuery({ name: 'offset', required: false, description: 'Number of groups to skip (for paging)' })
+  @Mcp()
   async getGroups(
     @Param('id') id: string,
     @Query('limit') limit?: string,
@@ -227,12 +238,13 @@ export class SessionController {
 
   @Get(':id/chats')
   @ApiOperation({ summary: 'Get active chats for a session' })
-  @ApiParam({ name: 'id', description: 'Session ID' })
+  @ApiParam({ name: 'id', description: 'Session UUID (the session id, not the name)' })
   @ApiResponse({ status: 200, description: 'List of active chats (most recent first)' })
   @ApiResponse({ status: 400, description: 'Session not ready' })
   @ApiResponse({ status: 404, description: 'Session not found' })
   @ApiQuery({ name: 'limit', required: false, description: 'Max chats to return (1–1000, default 1000)' })
   @ApiQuery({ name: 'offset', required: false, description: 'Number of chats to skip (for paging)' })
+  @Mcp()
   async getChats(
     @Param('id') id: string,
     @Query('limit') limit?: string,
@@ -247,10 +259,11 @@ export class SessionController {
   @Post(':id/chats/read')
   @RequireRole(ApiKeyRole.OPERATOR)
   @ApiOperation({ summary: 'Mark a chat as read/seen' })
-  @ApiParam({ name: 'id', description: 'Session ID' })
+  @ApiParam({ name: 'id', description: 'Session UUID (the session id, not the name)' })
   @ApiResponse({ status: 200, description: 'Chat marked as read successfully' })
   @ApiResponse({ status: 400, description: 'Session not ready' })
   @ApiResponse({ status: 404, description: 'Session not found' })
+  @Mcp()
   async markChatRead(@Param('id') id: string, @Body() dto: MarkChatReadDto): Promise<{ success: boolean }> {
     const success = await this.sessionService.sendSeen(id, dto.chatId);
     return { success };
@@ -259,10 +272,11 @@ export class SessionController {
   @Post(':id/chats/unread')
   @RequireRole(ApiKeyRole.OPERATOR)
   @ApiOperation({ summary: 'Mark a chat as unread' })
-  @ApiParam({ name: 'id', description: 'Session ID' })
+  @ApiParam({ name: 'id', description: 'Session UUID (the session id, not the name)' })
   @ApiResponse({ status: 200, description: 'Chat marked as unread successfully' })
   @ApiResponse({ status: 400, description: 'Session not ready' })
   @ApiResponse({ status: 404, description: 'Session not found' })
+  @Mcp()
   async markChatUnread(@Param('id') id: string, @Body() dto: MarkChatReadDto): Promise<{ success: boolean }> {
     const success = await this.sessionService.markUnread(id, dto.chatId);
     return { success };
@@ -271,10 +285,11 @@ export class SessionController {
   @Post(':id/chats/delete')
   @RequireRole(ApiKeyRole.OPERATOR)
   @ApiOperation({ summary: 'Delete a chat from the chat list (e.g. a group you have left)' })
-  @ApiParam({ name: 'id', description: 'Session ID' })
+  @ApiParam({ name: 'id', description: 'Session UUID (the session id, not the name)' })
   @ApiResponse({ status: 200, description: 'Chat deleted successfully' })
   @ApiResponse({ status: 400, description: 'Session not ready' })
   @ApiResponse({ status: 404, description: 'Session not found' })
+  @Mcp()
   async deleteChat(@Param('id') id: string, @Body() dto: DeleteChatDto): Promise<{ success: boolean }> {
     const success = await this.sessionService.deleteChat(id, dto.chatId);
     return { success };
@@ -283,9 +298,10 @@ export class SessionController {
   @Post(':id/chats/typing')
   @RequireRole(ApiKeyRole.OPERATOR)
   @ApiOperation({ summary: "Send a typing/recording presence indicator to a chat (or clear it with 'paused')" })
-  @ApiParam({ name: 'id', description: 'Session ID' })
+  @ApiParam({ name: 'id', description: 'Session UUID (the session id, not the name)' })
   @ApiResponse({ status: 200, description: 'Presence sent' })
   @ApiResponse({ status: 404, description: 'Session not found' })
+  @Mcp()
   async sendChatState(@Param('id') id: string, @Body() dto: SendChatStateDto): Promise<{ success: boolean }> {
     await this.sessionService.sendChatState(id, dto.chatId, dto.state);
     return { success: true };
@@ -299,6 +315,7 @@ export class SessionController {
     status: 200,
     description: 'Session statistics including counts and memory usage',
   })
+  @Mcp()
   async getStats(@CurrentApiKey() apiKey?: ApiKey): Promise<{
     total: number;
     active: number;

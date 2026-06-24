@@ -4,6 +4,7 @@ import { AuthService } from './auth.service';
 import { CreateApiKeyDto, UpdateApiKeyDto, ApiKeyResponseDto, ApiKeyCreatedResponseDto } from './dto';
 import { RequireRole } from './decorators/auth.decorators';
 import { ApiKeyRole } from './entities/api-key.entity';
+import { Mcp } from '../mcp/mcp.decorator';
 
 @ApiTags('auth')
 @Controller('auth/api-keys')
@@ -18,6 +19,7 @@ export class AuthController {
     description: 'API key created',
     type: ApiKeyCreatedResponseDto,
   })
+  @Mcp()
   async create(@Body() dto: CreateApiKeyDto): Promise<ApiKeyCreatedResponseDto> {
     const { apiKey, rawKey } = await this.authService.createApiKey(dto);
     return {
@@ -40,6 +42,7 @@ export class AuthController {
   @RequireRole(ApiKeyRole.ADMIN)
   @ApiOperation({ summary: 'List all API keys (admin only)' })
   @ApiResponse({ status: 200, type: [ApiKeyResponseDto] })
+  @Mcp()
   async findAll(): Promise<ApiKeyResponseDto[]> {
     const keys = await this.authService.findAll();
     return keys.map(k => ({
@@ -61,6 +64,7 @@ export class AuthController {
   @RequireRole(ApiKeyRole.ADMIN)
   @ApiOperation({ summary: 'Get API key details (admin only)' })
   @ApiResponse({ status: 200, type: ApiKeyResponseDto })
+  @Mcp()
   async findOne(@Param('id') id: string): Promise<ApiKeyResponseDto> {
     const k = await this.authService.findOne(id);
     return {
@@ -82,6 +86,7 @@ export class AuthController {
   @RequireRole(ApiKeyRole.ADMIN)
   @ApiOperation({ summary: 'Update API key (admin only)' })
   @ApiResponse({ status: 200, type: ApiKeyResponseDto })
+  @Mcp()
   async update(@Param('id') id: string, @Body() dto: UpdateApiKeyDto): Promise<ApiKeyResponseDto> {
     const k = await this.authService.update(id, dto);
     return {
@@ -104,6 +109,7 @@ export class AuthController {
   @HttpCode(HttpStatus.NO_CONTENT)
   @ApiOperation({ summary: 'Delete API key (admin only)' })
   @ApiResponse({ status: 204, description: 'API key deleted' })
+  @Mcp()
   async delete(@Param('id') id: string): Promise<void> {
     await this.authService.delete(id);
   }
@@ -112,6 +118,7 @@ export class AuthController {
   @RequireRole(ApiKeyRole.ADMIN)
   @ApiOperation({ summary: 'Revoke API key (admin only)' })
   @ApiResponse({ status: 200, type: ApiKeyResponseDto })
+  @Mcp()
   async revoke(@Param('id') id: string): Promise<ApiKeyResponseDto> {
     const k = await this.authService.revoke(id);
     return {
